@@ -15,8 +15,18 @@ const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'grievance-system-secret-key-2024';
 
 // ── Multer Storage Config ────────────────────────────────────────────────
-const uploadsDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+const isVercel = process.env.VERCEL === '1';
+const uploadsDir = isVercel 
+  ? path.join('/tmp', 'uploads') 
+  : path.join(process.cwd(), 'uploads');
+
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (err) {
+  console.log('Uploads directory creation skipped or failed:', err);
+}
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),

@@ -27,7 +27,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+const isVercel = process.env.VERCEL === '1';
+const uploadsPath = isVercel 
+  ? path.join('/tmp', 'uploads') 
+  : path.join(process.cwd(), 'uploads');
+
+app.use('/uploads', express.static(uploadsPath));
+
 
 // ── CITIZEN / USER ROUTES ───────────────────────────────────────────
 import citizenRoutes from './routes/citizen';

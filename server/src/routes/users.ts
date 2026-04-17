@@ -8,8 +8,18 @@ import { verifyAuth, requireRole } from '../middleware/auth';
 const router = Router();
 
 // Multer Storage for Avatars
-const avatarsDir = path.join(process.cwd(), 'uploads', 'avatars');
-if (!fs.existsSync(avatarsDir)) fs.mkdirSync(avatarsDir, { recursive: true });
+const isVercel = process.env.VERCEL === '1';
+const avatarsDir = isVercel
+  ? path.join('/tmp', 'uploads', 'avatars')
+  : path.join(process.cwd(), 'uploads', 'avatars');
+
+try {
+  if (!fs.existsSync(avatarsDir)) {
+    fs.mkdirSync(avatarsDir, { recursive: true });
+  }
+} catch (err) {
+  console.log('Avatars directory creation skipped or failed:', err);
+}
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, avatarsDir),
