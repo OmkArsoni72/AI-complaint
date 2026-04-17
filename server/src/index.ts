@@ -13,8 +13,8 @@ const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 5000;
 
-// Initialize Socket.io
-initSocket(httpServer);
+// Sockets will be initialized only in non-vercel environments
+// initSocket(httpServer); 
 
 // Middleware
 app.use(
@@ -69,6 +69,8 @@ app.get('/api/health', (_req, res) => {
 // Connect & Start
 if (!process.env.VERCEL) {
   connectDB().then(() => {
+    // Only start socket and monitor on traditional servers
+    initSocket(httpServer);
     startEscalationMonitor();
 
     httpServer.on('error', (err: NodeJS.ErrnoException) => {
