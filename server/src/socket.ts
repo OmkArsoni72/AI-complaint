@@ -45,16 +45,6 @@ export const initSocket = (server: HttpServer) => {
       return next();
     }
 
-    if (token === 'demo-token-active-citizen') {
-      (socket.data as any).user = {
-        userId: '65f1a2b3c4d5e6f7a8b9c0d1',
-        role: 'PUBLIC',
-        department: null,
-        name: 'Demo Citizen',
-      } satisfies SocketUser;
-      return next();
-    }
-
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       (socket.data as any).user = decoded satisfies SocketUser;

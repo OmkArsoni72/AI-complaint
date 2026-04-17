@@ -7,6 +7,7 @@ import {
   getDepartment,
   calculateSLA,
   generateTags,
+  generateComplaintId,
 } from '../services/aiEngine';
 
 const crisisTemplates = [
@@ -48,10 +49,11 @@ export const simulateCrisis = async (_req: Request, res: Response) => {
       ];
 
       const complaint = await Complaint.create({
+        complaintId: generateComplaintId(),
         description: template.desc,
         category,
         priority,
-        status: 'pending',
+        status: 'PENDING',
         department,
         tags,
         location: {
@@ -60,7 +62,8 @@ export const simulateCrisis = async (_req: Request, res: Response) => {
           area: template.area,
           district: template.district,
         },
-        assignedOfficer: officer?.name || 'Assigned Officer',
+        assignedOfficer: officer?._id?.toString() || '',
+        assignedOfficerName: officer?.name || 'Assigned Officer',
         slaDeadline,
         timeline,
         imageUrls: [],

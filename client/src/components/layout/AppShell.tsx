@@ -71,6 +71,10 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith('/superadmin') && user.role !== 'SUPER_ADMIN') {
       router.replace('/admin');
     }
+
+    if (pathname.startsWith('/admin') && (user.role === 'OFFICER' || user.isSubDepartment)) {
+      router.replace('/sub-department');
+    }
   }, [isLoading, user, pathname, router]);
 
   if (isLoading) {

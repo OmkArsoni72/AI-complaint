@@ -77,6 +77,13 @@ export const api = {
     });
   },
 
+  assignSubDepartment: async (id: string, subDepartmentId: string) => {
+    return await fetchApi<any>(`/admin/complaints/${id}/assign-subdepartment`, {
+      method: 'PATCH',
+      body: JSON.stringify({ subDepartmentId }),
+    });
+  },
+
   updateAdminComplaintStatus: async (id: string, status: string, remarks?: string) => {
     return await fetchApi<any>(`/admin/complaints/${id}/status`, {
       method: 'PATCH',
@@ -202,6 +209,25 @@ export const api = {
 
   deleteUser: async (id: string) => {
     return fetchApi<any>(`/users/${id}`, { method: 'DELETE' });
+  },
+
+  // ── Officer (Sub-department) ───────────────────────────
+  getOfficerComplaints: async () => {
+    return await fetchApi<any[]>('/officer/complaints');
+  },
+
+  updateOfficerComplaintStatus: async (id: string, status: string, remarks?: string, proofFileName?: string) => {
+    return await fetchApi<any>(`/officer/complaints/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, remarks, proofFileName }),
+    });
+  },
+
+  addOfficerComplaintRemark: async (id: string, text: string) => {
+    return await fetchApi<any>(`/officer/complaints/${id}/remark`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
   },
 
   // ── User Profile (Self) ─────────────────────────────────

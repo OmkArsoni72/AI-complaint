@@ -8,7 +8,7 @@ import AuditLog from '../models/AuditLog';
 import Notification from '../models/Notification';
 import { AuthRequest } from '../middleware/auth';
 import mongoose from 'mongoose';
-import { emitToUser } from '../socket';
+import { emitToDepartment, emitToUser } from '../socket';
 
 const notifyUser = async (userId: string | undefined, payload: { title: string; message: string; type: 'ASSIGNMENT' | 'STATUS_UPDATE' | 'CRISIS' | 'ESCALATION' | 'GENERAL'; relatedId?: string }) => {
   if (!userId) return;
@@ -26,25 +26,37 @@ const notifyUser = async (userId: string | undefined, payload: { title: string; 
 const buildDeptScope = async (req: AuthRequest) => {
   if (!req.user) return null;
 
-  const hasValidDeptId =
-    typeof req.user.departmentId === 'string' && mongoose.Types.ObjectId.isValid(req.user.departmentId);
+  let departmentId: any = req.user.departmentId ?? null;
+  let departmentName: string | null = req.user.department || null;
+
+  const missingDeptPayload = !departmentId && (!departmentName || !departmentName.trim());
+  if (missingDeptPayload && req.user.userId) {
+    const dbUser = await User.findById(req.user.userId).select('department departmentId');
+    if (dbUser) {
+      departmentId = dbUser.departmentId || null;
+      departmentName = dbUser.department || null;
+    }
+  }
+
+  const deptIdValue = departmentId?.toString ? departmentId.toString() : departmentId;
+  const hasValidDeptId = typeof deptIdValue === 'string' && mongoose.Types.ObjectId.isValid(deptIdValue);
 
   if (hasValidDeptId) {
-    const dept = await Department.findById(req.user.departmentId);
+    const dept = await Department.findById(deptIdValue);
     if (dept) {
       const subDepts = await Department.find({ parentDepartmentId: dept._id, isActive: true }).select('_id');
       return { dept, deptIds: [dept._id, ...subDepts.map((d) => d._id)] };
     }
   }
 
-  if (req.user.department) {
+  if (departmentName) {
     let dept = await Department.findOne({
-      name: { $regex: new RegExp(`^${req.user.department}$`, 'i') },
+      name: { $regex: new RegExp(`^${departmentName}$`, 'i') },
       isActive: true,
     });
     if (!dept && req.user.role === 'ADMIN') {
       dept = await Department.create({
-        name: req.user.department,
+        name: departmentName,
         contactEmail: req.user.email,
         adminUserId: req.user.userId,
       });
@@ -81,7 +93,21 @@ export const getSubDepartments = async (req: AuthRequest, res: Response) => {
     const scope = await buildDeptScope(req);
     if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
 
-    const subs = await Department.find({ parentDepartmentId: scope.dept._id, isActive: true }).sort({ name: 1 });
+    const parentIdSet = new Set<string>([scope.dept._id.toString()]);
+
+    if (req.user?.department) {
+      const escaped = req.user.department.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const nameMatches = await Department.find({ name: { $regex: new RegExp(`^${escaped}$`, 'i') } }).select('_id');
+      nameMatches.forEach((d) => parentIdSet.add(d._id.toString()));
+    }
+
+    if (req.user?.userId) {
+      const owned = await Department.find({ adminUserId: req.user.userId }).select('_id');
+      owned.forEach((d) => parentIdSet.add(d._id.toString()));
+    }
+
+    const parentIds = Array.from(parentIdSet);
+    const subs = await Department.find({ parentDepartmentId: { $in: parentIds }, isActive: true }).sort({ name: 1 });
     const subIds = subs.map((s) => s._id);
 
     const stats = await Complaint.aggregate([
@@ -167,9 +193,29 @@ export const createSubDepartment = async (req: AuthRequest, res: Response) => {
       name: `${deptName} Admin`,
       email: deptEmail,
       password: hashed,
-      role: 'ADMIN',
+      role: 'OFFICER',
       department: deptName,
       departmentId: department._id,
+    });
+
+    await Officer.create({
+      name: adminUser.name,
+      email: adminUser.email,
+      phone: '0000000000',
+      department: deptName,
+      departmentId: department._id,
+      designation: 'Sub-Department Officer',
+      rank: 'Officer',
+      level: 1,
+      employeeId: governmentId || '',
+      officeAddress: address || '',
+      district: '',
+      state: state || '',
+      pincode: pincode || '',
+      region: scope.dept.location || 'Delhi',
+      performance: 75,
+      isActive: true,
+      userId: adminUser._id,
     });
 
     department.adminUserId = adminUser._id;
@@ -359,13 +405,22 @@ export const getAdminComplaints = async (req: AuthRequest, res: Response) => {
     const scope = await buildDeptScope(req);
     if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
 
-    // Build base query: match by departmentId OR by department name
-    const query: any = {
-      $or: [
-        { departmentId: { $in: scope.deptIds } },
-        { department: scope.dept.name },
-      ],
-    };
+    const isSubDepartment = Boolean(req.user?.isSubDepartment);
+    const subDeptId = req.user?.departmentId;
+    // Build base query
+    const query: any = isSubDepartment
+      ? {
+          $or: [
+            { assignedTo: req.user?.userId },
+            ...(subDeptId ? [{ departmentId: subDeptId }] : []),
+          ],
+        }
+      : {
+          $or: [
+            { departmentId: { $in: scope.deptIds } },
+            { department: scope.dept.name },
+          ],
+        };
 
     if (typeof req.query.status === 'string' && req.query.status.trim()) {
       query.status = req.query.status.trim();
@@ -407,6 +462,7 @@ export const getAdminComplaints = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
 
 // PATCH /api/admin/complaints/:id/reject
 export const rejectComplaint = async (req: AuthRequest, res: Response) => {
@@ -554,6 +610,94 @@ export const assignComplaint = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// PATCH /api/admin/complaints/:id/assign-subdepartment
+export const assignSubDepartment = async (req: AuthRequest, res: Response) => {
+  try {
+    const scope = await buildDeptScope(req);
+    if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
+
+    const rawSub = req.body?.subDepartmentId || req.body?.subDepartment || req.body?.subDeptId || '';
+    const subDepartmentId = typeof rawSub === 'string' ? rawSub.trim() : '';
+
+    const subDept = subDepartmentId
+      ? await Department.findOne({
+          _id: subDepartmentId,
+          parentDepartmentId: scope.dept._id,
+          isActive: true,
+        })
+      : typeof rawSub === 'object' && rawSub?._id
+        ? await Department.findOne({
+            _id: rawSub._id,
+            parentDepartmentId: scope.dept._id,
+            isActive: true,
+          })
+        : typeof rawSub === 'string'
+          ? await Department.findOne({
+              name: { $regex: new RegExp(`^${rawSub}$`, 'i') },
+              parentDepartmentId: scope.dept._id,
+              isActive: true,
+            })
+          : null;
+
+    if (!subDept) return res.status(404).json({ success: false, error: 'Sub-department not found' });
+
+    const adminUserId = subDept.adminUserId
+      ? subDept.adminUserId.toString()
+      : (await User.findOne({
+          role: 'ADMIN',
+          isActive: true,
+          $or: [
+            { departmentId: subDept._id },
+            { department: subDept.name },
+            { email: subDept.contactEmail },
+          ],
+        }))?._id?.toString();
+
+    const complaint = await findComplaintByParam(getParamId(req.params.id), scope.deptIds, scope.dept.name);
+    if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found' });
+
+    complaint.assignedTo = adminUserId || '';
+    complaint.assignedOfficer = '';
+    complaint.assignedOfficerName = subDept.name;
+    complaint.departmentId = subDept._id;
+    complaint.department = subDept.name;
+    if (complaint.status === 'PENDING') {
+      complaint.status = 'IN_PROGRESS';
+    }
+    if (!complaint.notes) complaint.notes = [];
+    complaint.notes.push({
+      text: `Assigned to sub-department: ${subDept.name}`,
+      addedBy: req.user?.name || 'Admin',
+      addedAt: new Date(),
+      attachment: null,
+    });
+    await complaint.save();
+
+    if (adminUserId) {
+      await notifyUser(adminUserId, {
+        title: 'Sub-Department Assignment',
+        message: `Complaint #${complaint.complaintId} assigned to your sub-department.`,
+        type: 'ASSIGNMENT',
+        relatedId: complaint.complaintId,
+      });
+    }
+
+    await AuditLog.create({
+      action: 'ASSIGN_SUB_DEPARTMENT',
+      performedBy: req.user!.userId,
+      performedByName: req.user!.name,
+      role: req.user!.role,
+      targetType: 'complaint',
+      targetId: complaint.complaintId,
+      details: `Assigned to sub-department ${subDept.name}`,
+    });
+
+    res.json({ success: true, data: complaint });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // PATCH /api/admin/complaints/:id/status
 export const updateComplaintStatus = async (req: AuthRequest, res: Response) => {
   try {
@@ -577,14 +721,30 @@ export const updateComplaintStatus = async (req: AuthRequest, res: Response) => 
     }
 
     if (status === 'ESCALATED') {
-      const superAdmins = await User.find({ role: 'SUPER_ADMIN', isActive: true }).select('_id');
-      for (const sa of superAdmins) {
-        await notifyUser(sa._id.toString(), {
-          title: 'Manual Escalation',
-          message: `Complaint #${complaint.complaintId} manually escalated by admin.`,
-          type: 'ESCALATION',
-          relatedId: complaint.complaintId,
-        });
+      if (req.user?.isSubDepartment) {
+        const subDept = await Department.findById(req.user.departmentId).select('parentDepartmentId name');
+        const headDept = subDept?.parentDepartmentId
+          ? await Department.findById(subDept.parentDepartmentId).select('adminUserId name')
+          : null;
+        const headAdminId = headDept?.adminUserId?.toString();
+        if (headAdminId) {
+          await notifyUser(headAdminId, {
+            title: 'Sub-Department Escalation',
+            message: `Complaint #${complaint.complaintId} escalated by ${subDept?.name || 'sub-department'}. ${remarks ? `Note: ${remarks}` : ''}`,
+            type: 'ESCALATION',
+            relatedId: complaint.complaintId,
+          });
+        }
+      } else {
+        const superAdmins = await User.find({ role: 'SUPER_ADMIN', isActive: true }).select('_id');
+        for (const sa of superAdmins) {
+          await notifyUser(sa._id.toString(), {
+            title: 'Manual Escalation',
+            message: `Complaint #${complaint.complaintId} manually escalated by admin.`,
+            type: 'ESCALATION',
+            relatedId: complaint.complaintId,
+          });
+        }
       }
     }
 
@@ -615,6 +775,22 @@ export const updateComplaintStatus = async (req: AuthRequest, res: Response) => 
         type: 'STATUS_UPDATE',
         relatedId: complaint.complaintId,
       });
+
+      if (req.user?.isSubDepartment) {
+        const subDept = await Department.findById(req.user.departmentId).select('parentDepartmentId name');
+        const headDept = subDept?.parentDepartmentId
+          ? await Department.findById(subDept.parentDepartmentId).select('adminUserId name')
+          : null;
+        const headAdminId = headDept?.adminUserId?.toString();
+        if (headAdminId) {
+          await notifyUser(headAdminId, {
+            title: 'Sub-Department Resolved',
+            message: `Complaint #${complaint.complaintId} resolved by ${subDept?.name || 'sub-department'}.`,
+            type: 'STATUS_UPDATE',
+            relatedId: complaint.complaintId,
+          });
+        }
+      }
     }
 
     await AuditLog.create({

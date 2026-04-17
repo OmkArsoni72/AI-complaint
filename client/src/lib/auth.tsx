@@ -33,7 +33,6 @@ interface AuthContextType {
   setLanguage: (lang: Language) => void;
   t: (key: TranslationKey) => string;
   login: (email: string, password: string, requiredRole?: UserData['role']) => Promise<{ ok: boolean; user?: UserData; errorRole?: UserData['role'] }>;
-  demoLogin: (role: UserData['role']) => Promise<boolean>;
   register: (data: any) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -104,9 +103,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (data.success) {
         const userRole = data.data.user.role as UserData['role'];
+        const isSub = Boolean(data.data.user?.isSubDepartment);
         if (requiredRole && userRole !== requiredRole) {
-          localStorage.setItem('grievance_user_auth_error_role', userRole);
-          return { ok: false, errorRole: userRole };
+          if (!(requiredRole === 'OFFICER' && userRole === 'ADMIN' && isSub)) {
+            localStorage.setItem('grievance_user_auth_error_role', userRole);
+            return { ok: false, errorRole: userRole };
+          }
         }
         saveSession(data.data.token, data.data.user);
         return { ok: true, user: { ...data.data.user, id: data.data.user.id || data.data.user._id } };
@@ -115,24 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Login error:', err);
     }
     return { ok: false };
-  };
-
-  const demoLogin = async (role: UserData['role']): Promise<boolean> => {
-    try {
-      const res = await fetch(`${API_BASE}/auth/demo-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        saveSession(data.data.token, data.data.user);
-        return true;
-      }
-    } catch (err) {
-      console.error('Demo login error:', err);
-    }
-    return false;
   };
 
   const refreshUser = async () => {
@@ -187,7 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLanguage,
         t,
         login,
-        demoLogin,
         register,
         logout,
         refreshUser,

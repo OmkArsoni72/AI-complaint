@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, Bell, Menu, AlertTriangle, LogIn } from 'lucide-react';
+import { Search, Bell, Menu, AlertTriangle, LogIn, User, LogOut } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import AdminThemeToggle from './AdminThemeToggle';
@@ -19,13 +19,14 @@ function getLoginPath(pathname: string) {
 }
 
 export default function AdminTopbar({ onMenuToggle }: TopbarProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [notificationList, setNotificationList] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [crisisLoading, setCrisisLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const fetchNotifications = async () => {
     try {
@@ -191,6 +192,46 @@ export default function AdminTopbar({ onMenuToggle }: TopbarProps) {
                 ))
               )}
             </div>
+          </div>
+        )}
+
+        {user && (
+          <div className="relative">
+            <button
+              onClick={() => setShowProfileMenu((prev) => !prev)}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-xl border border-slate-200/70 bg-white/70 text-slate-700 hover:bg-slate-50 transition-all dark:border-white/10 dark:bg-white/[0.04] dark:text-white/80 dark:hover:bg-white/10"
+            >
+              <span className="w-8 h-8 rounded-full bg-primary-500/20 text-primary-400 flex items-center justify-center text-xs font-bold">
+                {(user.name || user.email || 'U').slice(0, 1).toUpperCase()}
+              </span>
+              <span className="hidden sm:block text-xs font-semibold max-w-[120px] truncate">{user.name || user.email}</span>
+            </button>
+
+            {showProfileMenu && (
+              <div className="absolute right-0 top-12 w-44 dark:bg-slate-900 bg-white border dark:border-white/10 border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden">
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    router.push('/admin/profile');
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 dark:text-white/70 dark:hover:bg-white/5"
+                >
+                  <User className="w-4 h-4" />
+                  My Profile
+                </button>
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    logout();
+                    router.replace(getLoginPath(pathname));
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-rose-500 hover:bg-rose-50/20 dark:hover:bg-rose-500/10"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
         )}
 

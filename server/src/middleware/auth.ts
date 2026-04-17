@@ -27,19 +27,6 @@ export function verifyAuth(req: AuthRequest, res: Response, next: NextFunction) 
     return res.status(401).json({ success: false, error: 'No token provided' });
   }
 
-  // BYPASS FOR STANDALONE DEMO MODE
-  if (token === 'demo-token-active-citizen') {
-    req.user = {
-      userId: '65f1a2b3c4d5e6f7a8b9c0d1', // Mock Mongo ID
-      role: 'PUBLIC',
-      department: null,
-      region: 'Delhi NCR',
-      name: 'Demo Citizen',
-      email: 'citizen@example.com'
-    };
-    return next();
-  }
-
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     req.user = decoded;

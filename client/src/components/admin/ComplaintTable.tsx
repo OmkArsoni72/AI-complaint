@@ -17,6 +17,7 @@ interface Complaint {
   department: string;
   assignedOfficerName: string | null;
   assignedOfficer?: string;
+  assignedTo?: string;
   slaDeadline: string;
   location: { area: string; district: string };
   createdAt: string;
@@ -30,6 +31,11 @@ interface OfficerOption {
   id: string;
   name: string;
   department?: string;
+}
+
+interface SubDepartmentOption {
+  _id: string;
+  name: string;
 }
 
 function useNow(intervalMs = 60000) {
@@ -65,7 +71,15 @@ function SLABadge({ deadline, now }: { deadline: string; now: number }) {
   );
 }
 
-export default function ComplaintTable({ complaints, officers = [] }: { complaints: Complaint[]; officers?: OfficerOption[] }) {
+export default function ComplaintTable({
+  complaints,
+  officers = [],
+  subDepartments = [],
+}: {
+  complaints: Complaint[];
+  officers?: OfficerOption[];
+  subDepartments?: SubDepartmentOption[];
+}) {
   const [filter, setFilter] = useState<string>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -76,6 +90,7 @@ export default function ComplaintTable({ complaints, officers = [] }: { complain
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateStatus, setUpdateStatus] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
+  const [subDepartmentId, setSubDepartmentId] = useState('');
   const [remarks, setRemarks] = useState('');
   const [proofFileName, setProofFileName] = useState('');
   const [rejectReason, setRejectReason] = useState('');
@@ -147,6 +162,13 @@ export default function ComplaintTable({ complaints, officers = [] }: { complain
       });
   }, [dateFilter, filter, now, priorityFilter, localComplaints, searchTerm, sortBy]);
 
+  const getAssignedLabel = (c: Complaint) => {
+    if (c.assignedOfficerName) return c.assignedOfficerName;
+    if (c.assignedOfficer && c.assignedOfficer !== 'Unassigned') return 'Assigned';
+    if (c.assignedTo) return 'Assigned';
+    return '—';
+  };
+
   const filters = ['ALL', 'PENDING', 'IN_PROGRESS', 'RESOLVED', 'ESCALATED', 'REJECTED'];
   const priorityOptions = ['ALL', 'HIGH', 'MEDIUM', 'LOW'];
   const dateOptions = [
@@ -156,6 +178,7 @@ export default function ComplaintTable({ complaints, officers = [] }: { complain
     { value: 'LAST_30_DAYS', label: 'Last 30 Days' },
   ];
   const officerOptions = officers.map((o) => ({ id: o.id, name: o.name }));
+  const subDepartmentOptions = subDepartments.map((s) => ({ id: s._id, name: s.name }));
 
   const handleAccept = async (target: Complaint) => {
     const id = target._id || target.complaintId;
@@ -184,14 +207,22 @@ export default function ComplaintTable({ complaints, officers = [] }: { complain
     try {
       const id = viewingComplaint._id || viewingComplaint.complaintId;
       let updatedComplaint: Complaint | null = null;
+      let currentStatus = viewingComplaint.status;
 
-      if (assigneeId && assigneeId !== viewingComplaint.assignedOfficer) {
+      if (subDepartmentId) {
+        const subRes = await api.assignSubDepartment(id.toString(), subDepartmentId);
+        if (!subRes.success) throw new Error(subRes.message || 'Sub-department assign failed');
+        updatedComplaint = subRes.data as Complaint;
+        currentStatus = updatedComplaint.status;
+      }
+
+      if (!subDepartmentId && assigneeId && assigneeId !== viewingComplaint.assignedOfficer) {
         const assignRes = await api.assignAdminComplaint(id.toString(), assigneeId);
         if (!assignRes.success) throw new Error(assignRes.message || 'Assign failed');
         updatedComplaint = assignRes.data as Complaint;
       }
 
-      if (updateStatus && updateStatus !== viewingComplaint.status) {
+      if (updateStatus && updateStatus !== currentStatus) {
         const statusRes = await api.updateAdminComplaintStatus(id.toString(), updateStatus, remarks || undefined);
         if (!statusRes.success) throw new Error(statusRes.message || 'Status update failed');
         updatedComplaint = statusRes.data as Complaint;
@@ -397,9 +428,14 @@ export default function ComplaintTable({ complaints, officers = [] }: { complain
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs text-white/50">
-                      {c.assignedOfficerName || '—'}
-                    </span>
+                    <div className="text-xs text-white/50">
+                      <span>{getAssignedLabel(c)}</span>
+                      {c.assignedOfficerName && (
+                        <span className="ml-2 text-[10px] text-primary-300 bg-primary-500/10 border border-primary-500/20 px-1.5 py-0.5 rounded">
+                          Sub-Dept
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs text-white/40 font-mono">
@@ -449,6 +485,7 @@ export default function ComplaintTable({ complaints, officers = [] }: { complain
                           setViewingComplaint(c);
                           setUpdateStatus(c.status);
                           setAssigneeId(c.assignedOfficer && c.assignedOfficer !== 'Unassigned' ? c.assignedOfficer.toString() : '');
+                          setSubDepartmentId('');
                           setRemarks(c.lastRemark || '');
                           setProofFileName(c.proofFileName || '');
                         }}
@@ -540,44 +577,51 @@ export default function ComplaintTable({ complaints, officers = [] }: { complain
                 </div>
               </div>
 
+              <div className="bg-white/5 p-3 rounded-xl border border-white/10 mb-6">
+                <p className="text-[10px] text-white/40 uppercase font-bold mb-1">Assigned To</p>
+                <p className="text-sm text-white font-medium">
+                  {getAssignedLabel(viewingComplaint)}
+                </p>
+              </div>
+
               {/* Action Panel */}
               <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-5 space-y-4">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wide">
-                  <Settings className="w-4 h-4 text-accent-400" /> Officer Action Panel
+                  <Settings className="w-4 h-4 text-accent-400" /> Assignment & Status Panel
                 </h3>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-white/60 mb-1">Assign Worker/Officer</label>
-                    <div className="relative">
-                      <User className="w-4 h-4 text-white/40 absolute left-3 top-2.5" />
-                      <select
-                        value={assigneeId}
-                        onChange={(e) => setAssigneeId(e.target.value)}
-                        aria-label="Assign complaint to officer"
-                        className="input-field pl-9 py-2 text-sm"
-                      >
-                        <option value="">Select officer</option>
-                        {officerOptions.map((officer) => (
-                          <option key={officer.id} value={officer.id}>{officer.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-white/60 mb-1">Update Status</label>
-                    <select
-                      value={updateStatus}
-                      onChange={(e) => setUpdateStatus(e.target.value)}
-                      aria-label="Update complaint status"
-                      className="input-field py-2 text-sm"
-                    >
-                      <option value="PENDING">Pending (Unassigned)</option>
-                      <option value="IN_PROGRESS">In Progress (Worker Dispatched)</option>
-                      <option value="RESOLVED">Resolved (Issue Fixed)</option>
-                      <option value="ESCALATED">Escalated (Requires higher authority)</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Assign Sub-Department</label>
+                  <select
+                    value={subDepartmentId}
+                    onChange={(e) => {
+                      setSubDepartmentId(e.target.value);
+                      if (updateStatus === 'PENDING') {
+                        setUpdateStatus('IN_PROGRESS');
+                      }
+                    }}
+                    aria-label="Assign complaint to sub-department"
+                    className="input-field py-2 text-sm"
+                  >
+                    <option value="">Select sub-department</option>
+                    {subDepartmentOptions.map((sub) => (
+                      <option key={sub.id} value={sub.id}>{sub.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-white/60 mb-1">Update Status</label>
+                  <select
+                    value={updateStatus}
+                    onChange={(e) => setUpdateStatus(e.target.value)}
+                    aria-label="Update complaint status"
+                    className="input-field py-2 text-sm"
+                  >
+                    <option value="PENDING">Pending (Unassigned)</option>
+                    <option value="IN_PROGRESS">In Progress (Worker Dispatched)</option>
+                    <option value="RESOLVED">Resolved (Issue Fixed)</option>
+                    <option value="ESCALATED">Escalated (Requires higher authority)</option>
+                  </select>
                 </div>
 
                 <div>

@@ -12,6 +12,7 @@ import {
   acceptComplaint,
   rejectComplaint,
   assignComplaint,
+  assignSubDepartment,
   updateComplaintStatus,
   addComplaintRemark,
 } from '../controllers/adminController';
@@ -29,7 +30,6 @@ router.get('/department', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), async
     if (!dept) {
       return res.status(404).json({ success: false, error: 'Department not found' });
     }
-    res.json({ success: true, data: dept });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -47,6 +47,7 @@ router.get('/complaints', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), getAd
 router.patch('/complaints/:id/accept', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), acceptComplaint);
 router.patch('/complaints/:id/reject', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), rejectComplaint);
 router.patch('/complaints/:id/assign', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), assignComplaint);
+router.patch('/complaints/:id/assign-subdepartment', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), assignSubDepartment);
 router.patch('/complaints/:id/status', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), updateComplaintStatus);
 router.post('/complaints/:id/remark', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), addComplaintRemark);
 

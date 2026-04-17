@@ -5,7 +5,7 @@ import { Shield, FileText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
-import ComplaintTable from '@/components/admin/ComplaintTable';
+import OfficerComplaintTable from '@/components/officer/OfficerComplaintTable';
 
 export default function SubDepartmentDashboard() {
   const { user, isLoading } = useAuth();
@@ -15,14 +15,14 @@ export default function SubDepartmentDashboard() {
   useEffect(() => {
     if (!isLoading) {
       if (!user) router.push('/sub-department/login');
-      else if (user.role !== 'ADMIN') router.push('/sub-department/login');
+      else if (user.role !== 'OFFICER' && !user.isSubDepartment) router.push('/sub-department/login');
     }
   }, [user, isLoading, router]);
 
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const res = await api.getAdminComplaints();
+      const res = await api.getOfficerComplaints();
       if (res.success) setComplaints(res.data as any[]);
     };
     fetchData();
@@ -82,7 +82,7 @@ export default function SubDepartmentDashboard() {
         <span className="text-sm">Assigned Complaints</span>
       </div>
 
-      <ComplaintTable complaints={complaints} officers={[]} />
+      <OfficerComplaintTable complaints={complaints} />
     </div>
   );
 }

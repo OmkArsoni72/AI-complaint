@@ -299,6 +299,93 @@ export const addNote = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// GET /api/officer/complaints
+export const getOfficerComplaints = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.userId) return res.status(401).json({ success: false, error: 'Not authenticated' });
+    const complaints = await Complaint.find({ assignedTo: req.user.userId }).sort({ createdAt: -1 });
+    res.json({ success: true, data: complaints });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// PATCH /api/officer/complaints/:id/status
+export const updateOfficerComplaintStatus = async (req: AuthRequest, res: Response) => {
+  try {
+    const { status, remarks, proofFileName } = req.body;
+    if (!status) return res.status(400).json({ success: false, error: 'status is required' });
+    const complaint = await Complaint.findOne({ complaintId: req.params.id, assignedTo: req.user?.userId });
+    if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found' });
+
+    complaint.status = status;
+    if (status === 'RESOLVED') {
+      complaint.resolvedAt = new Date();
+    }
+    if (typeof proofFileName === 'string' && proofFileName.trim()) {
+      complaint.proofFileName = proofFileName.trim();
+    }
+    if (remarks) {
+      if (!complaint.notes) complaint.notes = [];
+      complaint.notes.push({
+        text: remarks,
+        addedBy: req.user?.name || 'Officer',
+        addedAt: new Date(),
+        attachment: null,
+      });
+    }
+
+    await complaint.save();
+
+    await AuditLog.create({
+      action: 'OFFICER_UPDATE_STATUS',
+      performedBy: req.user?.userId || 'system',
+      performedByName: req.user?.name || 'Officer',
+      role: req.user?.role || 'OFFICER',
+      targetType: 'complaint',
+      targetId: complaint.complaintId,
+      details: `Status -> ${status}`,
+    });
+
+    res.json({ success: true, data: complaint });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// POST /api/officer/complaints/:id/remark
+export const addOfficerComplaintRemark = async (req: AuthRequest, res: Response) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ success: false, error: 'text is required' });
+    const complaint = await Complaint.findOne({ complaintId: req.params.id, assignedTo: req.user?.userId });
+    if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found' });
+
+    if (!complaint.notes) complaint.notes = [];
+    complaint.notes.push({
+      text,
+      addedBy: req.user?.name || 'Officer',
+      addedAt: new Date(),
+      attachment: null,
+    });
+    await complaint.save();
+
+    await AuditLog.create({
+      action: 'OFFICER_ADD_REMARK',
+      performedBy: req.user?.userId || 'system',
+      performedByName: req.user?.name || 'Officer',
+      role: req.user?.role || 'OFFICER',
+      targetType: 'complaint',
+      targetId: complaint.complaintId,
+      details: 'Added officer remark',
+    });
+
+    res.json({ success: true, data: complaint });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // POST /api/complaints/:id/reassign
 export const reassignComplaint = async (req: AuthRequest, res: Response) => {
   try {

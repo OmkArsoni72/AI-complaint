@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, LogIn, Eye, EyeOff, ShieldCheck, Users, UserCircle2, User, Phone } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
-type RoleType = 'PUBLIC' | 'ADMIN' | 'SUPER_ADMIN';
+type RoleType = 'PUBLIC' | 'ADMIN' | 'SUPER_ADMIN' | 'OFFICER';
 type PortalGuard = 'HEAD_ADMIN' | 'SUB_DEPARTMENT' | 'ANY_ADMIN';
 
 interface RoleLoginProps {
@@ -14,7 +14,6 @@ interface RoleLoginProps {
   title: string;
   subtitle: string;
   redirectTo: string;
-  allowDemo?: boolean;
   portalGuard?: PortalGuard;
 }
 
@@ -22,11 +21,12 @@ const roleMeta: Record<RoleType, { icon: any; label: string }> = {
   PUBLIC: { icon: UserCircle2, label: 'Citizen' },
   ADMIN: { icon: Users, label: 'Admin' },
   SUPER_ADMIN: { icon: ShieldCheck, label: 'Superadmin' },
+  OFFICER: { icon: Users, label: 'Officer' },
 };
 
-export default function RoleLogin({ role, title, subtitle, redirectTo, allowDemo = true, portalGuard = 'ANY_ADMIN' }: RoleLoginProps) {
+export default function RoleLogin({ role, title, subtitle, redirectTo, portalGuard = 'ANY_ADMIN' }: RoleLoginProps) {
   const router = useRouter();
-  const { login, demoLogin, register, logout } = useAuth();
+  const { login, register, logout } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -99,18 +99,6 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, allowDemo
       setError(res.error || 'Registration failed. Please try again.');
     }
 
-    setLoading(false);
-  };
-
-  const handleDemo = async () => {
-    setLoading(true);
-    setError('');
-    const ok = await demoLogin(role);
-    if (ok) {
-      router.push(redirectTo);
-    } else {
-      setError('Demo login failed. Seed data may be missing.');
-    }
     setLoading(false);
   };
 
@@ -313,21 +301,6 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, allowDemo
             </button>
           </form>
 
-          {allowDemo && mode === 'login' && (
-            <div className="login-demo-section">
-              <div className="login-divider">
-                <span>Demo Access</span>
-              </div>
-              <button
-                type="button"
-                onClick={handleDemo}
-                className="login-demo-btn"
-                disabled={loading}
-              >
-                Continue as Demo {roleMeta[role].label}
-              </button>
-            </div>
-          )}
 
           <motion.p
             initial={{ opacity: 0 }}

@@ -91,6 +91,23 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       name, email, password, role, department, region, phone, rank, level, employeeId, officeAddress, 
       district, state, pincode 
     } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, error: 'name, email, and password are required' });
+    }
+
+    const normalizedRole = typeof role === 'string' ? role.trim() : 'ADMIN';
+    const normalizedDept = typeof department === 'string' ? department.trim() : '';
+    const normalizedRank = typeof rank === 'string' ? rank.trim() : '';
+
+    if (normalizedRole === 'ADMIN') {
+      if (!normalizedDept) {
+        return res.status(400).json({ success: false, error: 'department is required for ADMIN users' });
+      }
+      if (!normalizedRank) {
+        return res.status(400).json({ success: false, error: 'designation is required for ADMIN users' });
+      }
+    }
     
     // Authorization check for ADMIN role
     if (req.user!.role === 'ADMIN') {
@@ -98,7 +115,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       if (!requester) return res.status(403).json({ success: false, error: 'Officer profile not found' });
       
       // Admin can only create users for their own department
-      if (department !== requester.department) {
+      if (normalizedDept !== requester.department) {
         return res.status(403).json({ success: false, error: 'Admins can only create users for their own department' });
       }
       
@@ -113,16 +130,21 @@ export const createUser = async (req: AuthRequest, res: Response) => {
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ success: false, error: 'Email already exists' });
 
+    const deptDoc = normalizedDept
+      ? await Department.findOne({ name: { $regex: new RegExp(`^${normalizedDept}$`, 'i') }, isActive: true })
+      : null;
+
     const hashed = await bcrypt.hash(password, 10);
     const userResult = await User.create({
-      name,
-      email,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
       password: hashed,
-      role: role || 'ADMIN',
-      department: department || null,
+      role: normalizedRole || 'ADMIN',
+      department: normalizedDept || null,
+      departmentId: deptDoc?._id || null,
       region: region || null,
-      phone: phone || '',
-      rank: rank || '',
+      phone: typeof phone === 'string' && phone.trim() ? phone.trim() : undefined,
+      rank: normalizedRank || '',
       level: level || 1,
       employeeId: employeeId || '',
       officeAddress: officeAddress || '',
@@ -138,8 +160,9 @@ export const createUser = async (req: AuthRequest, res: Response) => {
         email: userResult.email,
         phone: userResult.phone || '000-000-0000',
         department: userResult.department || 'General Administration',
-        designation: rank || 'Department Officer',
-        rank: rank || 'Officer',
+        departmentId: userResult.departmentId || null,
+        designation: normalizedRank || 'Department Officer',
+        rank: normalizedRank || 'Officer',
         level: level || 1,
         employeeId: employeeId || '',
         officeAddress: officeAddress || '',
@@ -159,7 +182,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       role: req.user!.role,
       targetType: 'user',
       targetId: userResult._id.toString(),
-      details: `Created ${role} user: ${name} (${email})`,
+      details: `Created ${normalizedRole} user: ${name} (${email})`,
     });
 
     res.status(201).json({

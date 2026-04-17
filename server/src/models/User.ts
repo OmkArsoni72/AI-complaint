@@ -38,7 +38,7 @@ const UserSchema = new Schema<IUser>(
     department: { type: String, default: null },
     departmentId: { type: Schema.Types.ObjectId, ref: 'Department', default: null },
     region: { type: String, default: null },
-    phone: { type: String, default: '' },
+    phone: { type: String },
     employeeId: { type: String, default: '' },
     officeAddress: { type: String, default: '' },
     rank: { type: String, default: '' },

@@ -248,7 +248,10 @@ export default function SuperAdminPage() {
       };
 
       const deptData = {
-        ...newDept,
+        name: newDept.name?.trim(),
+        type: newDept.type?.trim() || 'Law Enforcement',
+        location: newDept.location?.trim(),
+        jurisdictionLevel: newDept.jurisdictionLevel || 'City',
         icon: typeIcons[newDept.type] || 'DEPT',
       };
 

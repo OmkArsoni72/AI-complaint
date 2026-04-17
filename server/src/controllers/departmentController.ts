@@ -1,12 +1,18 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import Department from '../models/Department';
 import AuditLog from '../models/AuditLog';
 import { AuthRequest } from '../middleware/auth';
 
 // GET /api/departments
-export const getDepartments = async (_req: Request, res: Response) => {
+export const getDepartments = async (req: AuthRequest, res: Response) => {
   try {
-    const departments = await Department.find({ isActive: true }).sort({ name: 1 });
+    const query: Record<string, any> = { isActive: true };
+
+    if (req.user?.role === 'SUPER_ADMIN') {
+      query.parentDepartmentId = null;
+    }
+
+    const departments = await Department.find(query).sort({ name: 1 });
     res.json({ success: true, data: departments });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -17,6 +23,7 @@ export const getDepartments = async (_req: Request, res: Response) => {
 export const createDepartment = async (req: AuthRequest, res: Response) => {
   try {
     const { name, icon, location, type, jurisdictionLevel, categories, hierarchy } = req.body;
+    const normalizedType = typeof type === 'string' ? type.trim() : '';
     const exists = await Department.findOne({ name });
     if (exists) return res.status(400).json({ success: false, error: 'Department already exists' });
 
@@ -24,7 +31,7 @@ export const createDepartment = async (req: AuthRequest, res: Response) => {
       name,
       icon: icon || '🏢',
       location: location || 'Delhi',
-      type: type || 'Law',
+      type: normalizedType || 'General',
       jurisdictionLevel: jurisdictionLevel || 'City',
       categories: categories || [],
       hierarchy: hierarchy || [],
@@ -67,11 +74,12 @@ export const updateDepartment = async (req: AuthRequest, res: Response) => {
     }
 
     const { name, icon, location, type, jurisdictionLevel, categories, hierarchy } = req.body;
+    const normalizedType = typeof type === 'string' ? type.trim() : '';
     
     if (name) deptToUpdate.name = name;
     if (icon) deptToUpdate.icon = icon;
     if (location) deptToUpdate.location = location;
-    if (type) deptToUpdate.type = type;
+    if (normalizedType) deptToUpdate.type = normalizedType;
     if (jurisdictionLevel) deptToUpdate.jurisdictionLevel = jurisdictionLevel;
     if (categories) deptToUpdate.categories = categories;
     if (hierarchy) deptToUpdate.hierarchy = hierarchy;

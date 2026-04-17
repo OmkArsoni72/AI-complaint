@@ -31,6 +31,7 @@ export default function AdminPage() {
   const [showAddMember, setShowAddMember] = useState(false);
   const [showEditMember, setShowEditMember] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
+  const [isCreatingSubDepartment, setIsCreatingSubDepartment] = useState(false);
   const [newMember, setNewMember] = useState<any>({
     name: '',
     email: '',
@@ -75,29 +76,38 @@ export default function AdminPage() {
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCreatingSubDepartment) return;
     if (!newMember.name?.trim()) return toast.error('Sub-department name is required');
     if (!newMember.email?.trim()) return toast.error('Email is required');
     if (!newMember.password || newMember.password.length < 6) return toast.error('Password must be 6+ characters');
 
-    const res = await api.createSubDepartment({
-      name: newMember.name.trim(),
-      email: newMember.email.trim(),
-      password: newMember.password,
-      address: newMember.address || '',
-      pincode: newMember.pincode || '',
-      state: newMember.state || '',
-      governmentId: newMember.governmentId || '',
-    });
+    setIsCreatingSubDepartment(true);
+    try {
+      const res = await api.createSubDepartment({
+        name: newMember.name.trim(),
+        email: newMember.email.trim(),
+        password: newMember.password,
+        address: newMember.address || '',
+        pincode: newMember.pincode || '',
+        state: newMember.state || '',
+        governmentId: newMember.governmentId || '',
+      });
 
-    if (!res.success) {
-      toast.error(res.message || res.error || 'Failed to create sub-department');
-      return;
+      if (!res.success) {
+        toast.error(res.message || res.error || 'Failed to create sub-department');
+        return;
+      }
+
+      const fresh = await api.getSubDepartments();
+      if (fresh.success) setSubDepartments(fresh.data as any[]);
+      else setSubDepartments((prev) => [res.data, ...prev]);
+
+      toast.success('Sub-department created');
+      setShowAddMember(false);
+      setNewMember({ name: '', email: '', password: '', address: '', pincode: '', state: '', governmentId: '' });
+    } finally {
+      setIsCreatingSubDepartment(false);
     }
-
-    setSubDepartments((prev) => [res.data, ...prev]);
-    toast.success('Sub-department created');
-    setShowAddMember(false);
-    setNewMember({ name: '', email: '', password: '', address: '', pincode: '', state: '', governmentId: '' });
   };
 
   const handleEditMember = async (e: React.FormEvent) => {
@@ -159,6 +169,7 @@ export default function AdminPage() {
 
     toast.success(`Complaint moved to ${status.replace('_', ' ')}`);
   };
+
 
   useEffect(() => {
     if (!user) return;
@@ -269,6 +280,9 @@ export default function AdminPage() {
     validSections.includes(sectionParam) ? (sectionParam as any) : 'dashboard';
 
   if (isLoading || !user || user.role === 'PUBLIC') return null;
+  if (user.isSubDepartment) {
+    return null;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -351,7 +365,14 @@ export default function AdminPage() {
             </div>
           )}
 
-          {activeSection === 'complaints' && <ComplaintTable complaints={complaints} officers={officers} />}
+          {activeSection === 'complaints' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <h2 className="text-xl font-bold text-white">Complaint Control</h2>
+              </div>
+              <ComplaintTable complaints={complaints} officers={officers} subDepartments={subDepartments} />
+            </div>
+          )}
 
           {activeSection === 'subdepartments' && (
           <div className="space-y-4">
@@ -536,7 +557,13 @@ export default function AdminPage() {
               <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-white/5">
                 <button type="button" onClick={() => setShowAddMember(false)}
                   className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-white/60 hover:bg-white/5 transition-all text-sm">Cancel</button>
-                <button type="submit" className="w-full sm:flex-1 btn-primary text-sm shadow-xl shadow-primary-500/20">Create Sub-Department</button>
+                <button
+                  type="submit"
+                  disabled={isCreatingSubDepartment}
+                  className="w-full sm:flex-1 btn-primary text-sm shadow-xl shadow-primary-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isCreatingSubDepartment ? 'Creating...' : 'Create Sub-Department'}
+                </button>
               </div>
             </form>
           </motion.div>

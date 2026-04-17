@@ -27,6 +27,7 @@ export interface IComplaint extends Document {
   tags: string[];
   imageUrls: string[];
   voiceNoteUrl: string;
+  proofFileName?: string;
   userId: string;
   userName: string;
   assignedOfficer: string;
@@ -73,6 +74,7 @@ const ComplaintSchema = new Schema<IComplaint>(
     tags:        { type: [String], default: [] },
     imageUrls:   { type: [String], default: [] },
     voiceNoteUrl:{ type: String, default: '' },
+    proofFileName: { type: String, default: '' },
     userId:      { type: String, default: '' },
     userName:    { type: String, default: 'Anonymous' },
     assignedOfficer: { type: String, default: 'Unassigned' },

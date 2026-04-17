@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Zap,
   Users,
+  FileText,
   LogIn,
   LogOut,
   User,
@@ -51,6 +52,11 @@ export default function AdminSidebar({ collapsed, onToggle }: SidebarProps) {
         { label: 'Admin Panel', icon: Building2, href: '/superadmin/adminpanel' },
         { label: 'Analytics', icon: BarChart3, href: '/superadmin/analytics' },
         { label: 'Officer Desk', icon: Users, href: '/superadmin/officer-desk' },
+      ]
+    : user?.role === 'OFFICER'
+    ? [
+        { label: 'Dashboard', icon: LayoutDashboard, href: '/sub-department' },
+        { label: 'My Complaints', icon: FileText, href: '/sub-department' },
       ]
     : [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/admin?section=dashboard', sectionKey: 'dashboard' },

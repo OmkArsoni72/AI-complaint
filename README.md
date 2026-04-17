@@ -124,7 +124,7 @@ github/
 │           ├── api.ts           # API + fallback
 │           ├── auth.tsx         # Auth context
 │           ├── constants.ts
-│           └── dummyData.ts
+│           └── translations.ts
 │
 └── server/                  # Express.js backend
     └── src/
@@ -149,7 +149,6 @@ github/
 |--------|-------|--------|
 | POST | `/api/auth/login` | Public |
 | POST | `/api/auth/register` | Public |
-| POST | `/api/auth/demo-login` | Public |
 
 ### Complaints
 | Method | Route | Access |
