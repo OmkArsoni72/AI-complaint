@@ -58,25 +58,35 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
 
+    // No user → send to appropriate login
     if (!user) {
-      router.replace(pathname.startsWith('/superadmin') ? '/superadmin/login' : '/admin/login');
+      if (pathname.startsWith('/superadmin')) router.replace('/superadmin/login');
+      else if (pathname.startsWith('/sub-department')) router.replace('/sub-department/login');
+      else router.replace('/admin/login');
       return;
     }
 
+    // PUBLIC user has no business here
     if (user.role === 'PUBLIC') {
       router.replace('/citizen/login');
       return;
     }
 
+
+    // Non-superadmin on /superadmin → send to /admin
     if (pathname.startsWith('/superadmin') && user.role !== 'SUPER_ADMIN') {
       router.replace('/admin');
+      return;
     }
 
+    // OFFICER / sub-department user on /admin → send to /sub-department
     if (pathname.startsWith('/admin') && (user.role === 'OFFICER' || user.isSubDepartment)) {
       router.replace('/sub-department');
+      return;
     }
   }, [isLoading, user, pathname, router]);
 
+  // While loading, show spinner — never render children prematurely
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-transparent">
@@ -85,6 +95,7 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Waiting for redirect to fire
   if (!user || user.role === 'PUBLIC') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-transparent">
@@ -92,6 +103,7 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
 
   return <AdminLayout>{children}</AdminLayout>;
 }

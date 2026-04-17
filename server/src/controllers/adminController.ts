@@ -411,6 +411,8 @@ export const createOfficer = async (req: AuthRequest, res: Response) => {
 export const getAdminComplaints = async (req: AuthRequest, res: Response) => {
   try {
     const scope = await buildDeptScope(req);
+    console.log('[getAdminComplaints] user:', req.user?.email, 'role:', req.user?.role);
+    console.log('[getAdminComplaints] scope:', scope ? { deptName: scope.dept.name, deptIds: scope.deptIds.map((id: any) => id.toString()), categories: scope.dept.categories } : 'NULL');
     if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
 
     const isSubDepartment = Boolean(req.user?.isSubDepartment);
@@ -476,7 +478,9 @@ export const getAdminComplaints = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    console.log('[getAdminComplaints] final query:', JSON.stringify(query));
     const complaints = await Complaint.find(query).sort({ createdAt: -1 });
+    console.log('[getAdminComplaints] found complaints:', complaints.length);
     res.json({ success: true, data: complaints });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -676,9 +680,12 @@ export const assignSubDepartment = async (req: AuthRequest, res: Response) => {
     const complaint = await findComplaintByParam(getParamId(req.params.id), scope.deptIds, scope.dept.name);
     if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found' });
 
-    complaint.assignedTo = adminUserId || '';
+    complaint.assignedTo = adminUserId || subDept._id.toString();
     complaint.assignedOfficer = '';
     complaint.assignedOfficerName = subDept.name;
+    (complaint as any).assignedSubDepartment = subDept._id;
+    (complaint as any).assignedSubDepartmentName = subDept.name;
+    (complaint as any).lastRemark = `Assigned to ${subDept.name} by admin`;
     complaint.departmentId = subDept._id;
     complaint.department = subDept.name;
     if (complaint.status === 'PENDING') {
@@ -908,3 +915,4 @@ export const getSubDepartmentComplaints = async (req: AuthRequest, res: Response
     res.status(500).json({ success: false, error: err.message });
   }
 };
+

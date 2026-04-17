@@ -141,14 +141,62 @@ router.post(
       }
       const priority = detectPriority(description);
       const escapedCategory = category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const deptDoc = await Department.findOne({
+
+      // Step 1: Try matching department by category
+      let deptDoc: any = await Department.findOne({
         isActive: true,
+        parentDepartmentId: null,
         categories: { $regex: new RegExp(`^${escapedCategory}$`, 'i') },
       }).select('name');
+
+      // Step 2: If no category match, try matching by department name keywords
+      if (!deptDoc) {
+        const CATEGORY_TO_DEPT_KEYWORDS: Record<string, string[]> = {
+          'Water Supply': ['water', 'jal'],
+          'Electricity': ['electric', 'power', 'bses', 'tpddl'],
+          'Traffic & Transport': ['traffic', 'transport', 'police'],
+          'Sanitation': ['municipal', 'sanitation', 'corporation'],
+          'Public Safety': ['police', 'law', 'enforcement', 'safety'],
+          'Environment': ['environment', 'pollution'],
+          'Health': ['health'],
+          'Education': ['education'],
+          'Infrastructure': ['pwd', 'public works', 'infrastructure'],
+          'General': ['general', 'admin', 'govt', 'government'],
+        };
+        const keywords = CATEGORY_TO_DEPT_KEYWORDS[category] || [];
+        for (const kw of keywords) {
+          deptDoc = await Department.findOne({
+            isActive: true,
+            parentDepartmentId: null,
+            name: { $regex: new RegExp(kw, 'i') },
+          }).select('name');
+          if (deptDoc) break;
+        }
+      }
+
       const department = deptDoc?.name || getDepartment(category);
       const departmentId = deptDoc?._id || null;
       const slaDeadline = calculateSLA(category, priority);
       const tags = generateTags(description, category);
+
+      // ── Duplicate Detection (50m Radius & Same Category) ─────────────
+      const duplicateFound = await Complaint.findOne({
+        category,
+        status: { $nin: ['RESOLVED', 'CLOSED', 'REJECTED'] },
+        location: {
+          $near: {
+            $geometry: {
+              type: 'Point',
+              coordinates: [Number.isFinite(lngNum) ? lngNum : 77.209, Number.isFinite(latNum) ? latNum : 28.6139],
+            },
+            $maxDistance: 50, // 50 meters
+          },
+        },
+      });
+
+      if (duplicateFound && !tags.includes('duplicate-warning')) {
+        tags.push('duplicate-warning');
+      }
 
       // ── Uploaded Files ───────────────────────────────────────────────
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -226,6 +274,7 @@ router.post(
       }
       emitEvent('stats_updated', null);
 
+      console.log('[complaint/create] Created complaint:', complaint.complaintId, 'dept:', complaint.department, 'deptId:', complaint.departmentId, 'category:', complaint.category);
       res.status(201).json({ success: true, data: complaint });
     } catch (err: any) {
       console.error('Create complaint error:', err);

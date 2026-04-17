@@ -24,13 +24,25 @@ const router = Router();
 router.get('/department', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), async (req, res) => {
   try {
     const authReq = req as any;
-    if (!authReq.user?.departmentId) {
-      return res.status(400).json({ success: false, error: 'Department ID not found' });
+    console.log('[admin/department] user:', authReq.user?.email, 'departmentId:', authReq.user?.departmentId, 'department:', authReq.user?.department);
+
+    // Try by departmentId first, then fall back to department name
+    let dept: any = null;
+    if (authReq.user?.departmentId) {
+      dept = await Department.findById(authReq.user.departmentId).select('name categories location jurisdiction address state');
     }
-    const dept = await Department.findById(authReq.user.departmentId).select('name categories location jurisdiction address state');
+    if (!dept && authReq.user?.department) {
+      dept = await Department.findOne({
+        name: { $regex: new RegExp(`^${authReq.user.department.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        isActive: true,
+      }).select('name categories location jurisdiction address state');
+    }
     if (!dept) {
+      console.log('[admin/department] Department not found for user:', authReq.user?.email);
       return res.status(404).json({ success: false, error: 'Department not found' });
     }
+    console.log('[admin/department] Found dept:', dept.name, 'categories:', dept.categories);
+    res.json({ success: true, data: dept });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

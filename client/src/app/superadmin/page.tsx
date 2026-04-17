@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
-import { Shield, Users, FileText, Settings, Map, BarChart3, Building2, PlusCircle, Trash2, Edit, X, Eye, EyeOff } from 'lucide-react';
+import { Shield, Users, FileText, Settings, Map, BarChart3, Building2, PlusCircle, Trash2, Edit, X, Eye, EyeOff, AlertTriangle, TrendingUp, TrendingDown, CheckCircle2, Clock, Send, Activity, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -18,16 +17,6 @@ const CityMap = dynamic(() => import('@/components/dashboard/CityMap'), { ssr: f
 
 export default function SuperAdminPage() {
   const { user, isLoading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isLoading) {
-      if (!user) router.push('/superadmin/login');
-      else if (user.role !== 'SUPER_ADMIN') {
-        router.push(user.role === 'ADMIN' ? '/admin' : '/');
-      }
-    }
-  }, [user, isLoading, router]);
 
   const [stats, setStats] = useState<any>(null);
   const [complaints, setComplaints] = useState<any[]>([]);
@@ -38,7 +27,11 @@ export default function SuperAdminPage() {
   const [slaConfigs, setSlaConfigs] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [tab, setTab] = useState<'overview' | 'users' | 'sla' | 'audit' | 'departments'>('overview');
+  const [adminOverview, setAdminOverview] = useState<any[]>([]);
+  const [warnModal, setWarnModal] = useState<{ admin: any; open: boolean } | null>(null);
+  const [warnMessage, setWarnMessage] = useState('');
+  const [isSendingWarn, setIsSendingWarn] = useState(false);
+  const [tab, setTab] = useState<'overview' | 'performance' | 'users' | 'sla' | 'audit' | 'departments'>('overview');
   const [showAddDept, setShowAddDept] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
   const [newDept, setNewDept] = useState<any>({ name: '', type: 'Law Enforcement', location: '', jurisdictionLevel: 'City' });
@@ -207,16 +200,18 @@ export default function SuperAdminPage() {
       if (escRes.success) setEscData(escRes.data);
 
       try {
-        const [usrRes, slaRes, audRes, dptRes] = await Promise.all([
+        const [usrRes, slaRes, audRes, dptRes, adminRes] = await Promise.all([
           api.getUsers(),
           api.getSLAConfigs(),
           api.getAuditLogs(),
           api.getDepartments(),
+          api.getSuperadminAdmins(),
         ]);
         if (usrRes.success) setUsers(usrRes.data as any[]);
         if (slaRes.success) setSlaConfigs(slaRes.data as any[]);
         if (audRes.success) setAuditLogs(audRes.data as any[]);
         if (dptRes.success) setDepartments(dptRes.data as any[]);
+        if (adminRes.success) setAdminOverview(adminRes.data as any[]);
       } catch {}
     };
     fetchAll();
@@ -295,8 +290,23 @@ export default function SuperAdminPage() {
     setShowAddDept(true);
   };
 
+  const handleSendWarn = async () => {
+    if (!warnModal?.admin) return;
+    setIsSendingWarn(true);
+    const res = await api.warnSuperadminAdmin(warnModal.admin.id, warnMessage || 'Please review your pending complaints immediately.');
+    if (res.success) {
+      toast.success(`⚠️ Warning sent to ${warnModal.admin.name}`);
+      setWarnModal(null);
+      setWarnMessage('');
+    } else {
+      toast.error(res.message || 'Failed to send warning');
+    }
+    setIsSendingWarn(false);
+  };
+
   const tabs = [
     { key: 'overview' as const, label: 'City Dashboard', icon: Map },
+    { key: 'performance' as const, label: 'Admin Performance', icon: Activity },
     { key: 'departments' as const, label: 'Manage Depts', icon: Building2 },
     { key: 'users' as const, label: 'User Management', icon: Users },
     { key: 'sla' as const, label: 'SLA Rules', icon: Settings },
@@ -358,6 +368,209 @@ export default function SuperAdminPage() {
           <div className="glass-card p-5">
             <h3 className="text-sm font-semibold text-white mb-2">Citywide Complaint Map</h3>
             <CityMap complaints={complaints} />
+          </div>
+        </div>
+      )}
+
+      {tab === 'performance' && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Activity className="w-5 h-5 text-indigo-400" />
+                Department Admin Performance
+              </h2>
+              <p className="text-xs text-white/40 mt-0.5">Real-time accountability — who's working, who needs action</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-white/30 uppercase tracking-widest">Total Admins</p>
+              <p className="text-2xl font-black text-white">{adminOverview.length}</p>
+            </div>
+          </div>
+
+          {/* Summary Alert Banners */}
+          {(() => {
+            const highPriority = complaints.filter(c => c.priority === 'HIGH' || c.priority === 'CRITICAL');
+            const overdue = complaints.filter(c => c.slaDeadline && new Date(c.slaDeadline) < new Date() && c.status !== 'RESOLVED');
+            const inactive = adminOverview.filter(a => a.status === 'INACTIVE');
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="flex items-center gap-3 p-4 rounded-xl border border-rose-500/25 bg-rose-500/10">
+                  <Zap className="w-8 h-8 text-rose-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xl font-black text-rose-400">{highPriority.length}</p>
+                    <p className="text-[10px] text-rose-300/60 uppercase font-bold">High/Critical Priority</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/25 bg-amber-500/10">
+                  <Clock className="w-8 h-8 text-amber-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xl font-black text-amber-400">{overdue.length}</p>
+                    <p className="text-[10px] text-amber-300/60 uppercase font-bold">SLA Overdue</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-4 rounded-xl border border-slate-500/25 bg-slate-500/10">
+                  <TrendingDown className="w-8 h-8 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xl font-black text-slate-300">{inactive.length}</p>
+                    <p className="text-[10px] text-slate-300/60 uppercase font-bold">Inactive Admins</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* High Priority Complaints */}
+          {complaints.filter(c => c.priority === 'HIGH' || c.priority === 'CRITICAL').length > 0 && (
+            <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 p-4">
+              <h3 className="text-xs font-bold text-rose-300 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5" /> High / Critical Priority Complaints Needing Action
+              </h3>
+              <div className="space-y-2 max-h-[280px] overflow-y-auto custom-scrollbar">
+                {complaints
+                  .filter(c => (c.priority === 'HIGH' || c.priority === 'CRITICAL') && c.status !== 'RESOLVED')
+                  .slice(0, 15)
+                  .map((c: any, i: number) => (
+                    <div key={c._id || i} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-rose-500/5 border border-rose-500/10">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-[10px] font-mono text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded flex-shrink-0">#{(c.complaintId || c._id || '').toString().slice(-6)}</span>
+                        <p className="text-xs text-white/70 truncate">{c.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-400">{c.priority}</span>
+                        <span className="text-[9px] text-white/40">{c.department || '—'}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                          c.status === 'PENDING' ? 'bg-amber-500/15 text-amber-400' :
+                          c.status === 'IN_PROGRESS' ? 'bg-sky-500/15 text-sky-400' :
+                          'bg-white/10 text-white/40'
+                        }`}>{c.status}</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Admin Department Cards */}
+          <div className="space-y-3">
+            {adminOverview.length === 0 ? (
+              <div className="text-center py-16 rounded-xl border border-white/5">
+                <Activity className="w-10 h-10 text-white/10 mx-auto mb-3" />
+                <p className="text-sm text-white/30">No admin data available</p>
+              </div>
+            ) : (
+              adminOverview
+                .sort((a, b) => {
+                  // Sort: inactive first, then by escalated count desc, then by pending desc
+                  if (a.status !== b.status) return a.status === 'INACTIVE' ? -1 : 1;
+                  return (b.stats?.escalated || 0) - (a.stats?.escalated || 0) || (b.stats?.pending || 0) - (a.stats?.pending || 0);
+                })
+                .map((admin: any, i: number) => {
+                  const resolvePct = admin.stats?.total > 0
+                    ? Math.round((admin.stats.resolved / admin.stats.total) * 100)
+                    : 0;
+                  const isInactive = admin.status === 'INACTIVE';
+                  const hasCriticalIssue = (admin.stats?.escalated || 0) > 0 || isInactive;
+
+                  return (
+                    <motion.div
+                      key={admin.id || i}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.04 }}
+                      className={`rounded-xl border p-4 ${
+                        hasCriticalIssue
+                          ? 'border-rose-500/25 bg-rose-950/15'
+                          : resolvePct >= 70
+                          ? 'border-emerald-500/15 bg-emerald-950/10'
+                          : 'border-white/[0.06] bg-white/[0.015]'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        {/* Left — Admin Info */}
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${
+                            hasCriticalIssue ? 'bg-rose-500/20 text-rose-400' :
+                            resolvePct >= 70 ? 'bg-emerald-500/20 text-emerald-400' :
+                            'bg-indigo-500/20 text-indigo-400'
+                          }`}>
+                            {admin.name?.charAt(0)?.toUpperCase() || 'A'}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-bold text-white">{admin.name}</p>
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${
+                                isInactive ? 'bg-slate-500/20 text-slate-400' : 'bg-emerald-500/15 text-emerald-400'
+                              }`}>
+                                {isInactive ? '● INACTIVE' : '● ACTIVE'}
+                              </span>
+                              {(admin.stats?.escalated || 0) > 0 && (
+                                <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-rose-500/20 text-rose-400">
+                                  🚨 {admin.stats.escalated} Escalated
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-white/40 truncate">{admin.email}</p>
+                            <p className="text-[10px] text-indigo-400/70 font-medium">{admin.department}</p>
+                          </div>
+                        </div>
+
+                        {/* Right — Action Button */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => { setWarnModal({ admin, open: true }); setWarnMessage(''); }}
+                            className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-bold rounded-lg border border-amber-500/30 text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+                          >
+                            <AlertTriangle className="w-3 h-3" /> Warn
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Stats Row */}
+                      <div className="mt-3 grid grid-cols-5 gap-2">
+                        {[
+                          { label: 'Total', value: admin.stats?.total || 0, color: 'text-white' },
+                          { label: 'Pending', value: admin.stats?.pending || 0, color: 'text-amber-400' },
+                          { label: 'In Work', value: (admin.stats?.inProgress || 0), color: 'text-sky-400' },
+                          { label: 'Resolved', value: admin.stats?.resolved || 0, color: 'text-emerald-400' },
+                          { label: 'Escalated', value: admin.stats?.escalated || 0, color: 'text-rose-400' },
+                        ].map((s) => (
+                          <div key={s.label} className="text-center p-2 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                            <p className={`text-base font-black ${s.color}`}>{s.value}</p>
+                            <p className="text-[8px] text-white/25 uppercase font-bold">{s.label}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-[9px] text-white/30 uppercase font-bold">Resolution Rate</p>
+                          <p className={`text-[10px] font-black ${
+                            resolvePct >= 70 ? 'text-emerald-400' :
+                            resolvePct >= 40 ? 'text-amber-400' : 'text-rose-400'
+                          }`}>{resolvePct}%</p>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-white/5">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              resolvePct >= 70 ? 'bg-emerald-400' :
+                              resolvePct >= 40 ? 'bg-amber-400' : 'bg-rose-400'
+                            }`}
+                            style={{ width: `${resolvePct}%` }}
+                          />
+                        </div>
+                        {admin.daysSinceLogin !== null && (
+                          <p className="text-[9px] text-white/25 mt-1">
+                            Last login: {admin.daysSinceLogin === 0 ? 'Today' : `${admin.daysSinceLogin}d ago`}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })
+            )}
           </div>
         </div>
       )}
@@ -644,7 +857,7 @@ export default function SuperAdminPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Department</label>
-                  <select value={newUser.department} onChange={(e) => handleUserFieldChange('department', e.target.value)} className="input-field text-sm" required>
+                  <select value={newUser.department || ''} onChange={(e) => handleUserFieldChange('department', e.target.value)} className="input-field text-sm" required>
                     <option value="">Select department</option>
                     {departments.map((d) => (
                       <option key={d._id} value={d.name}>{d.name}</option>
@@ -763,6 +976,65 @@ export default function SuperAdminPage() {
               <button onClick={() => { startEditUser(viewingUser); setViewingUser(null); }}
                 className="flex-1 btn-primary text-sm shadow-xl shadow-primary-500/20 flex items-center justify-center gap-2">
                 <Edit className="w-3.5 h-3.5" /> Edit Official
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ── Warn Modal ── */}
+      {warnModal?.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md rounded-2xl border border-amber-500/20 bg-slate-950/95 shadow-2xl p-6"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Send Warning</h3>
+                <p className="text-xs text-white/40">To: {warnModal.admin.name} — {warnModal.admin.department}</p>
+              </div>
+              <button onClick={() => setWarnModal(null)} className="ml-auto p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                <X className="w-4 h-4 text-white/60" />
+              </button>
+            </div>
+
+            <div className="mb-4 grid grid-cols-3 gap-2">
+              {[
+                { label: 'Pending', val: warnModal.admin.stats?.pending || 0, color: 'text-amber-400' },
+                { label: 'Escalated', val: warnModal.admin.stats?.escalated || 0, color: 'text-rose-400' },
+                { label: 'Resolved', val: warnModal.admin.stats?.resolved || 0, color: 'text-emerald-400' },
+              ].map(s => (
+                <div key={s.label} className="text-center p-2 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                  <p className={`text-lg font-black ${s.color}`}>{s.val}</p>
+                  <p className="text-[9px] text-white/30 uppercase">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-[10px] font-bold text-white/30 uppercase mb-1.5">Warning Message</label>
+              <textarea
+                value={warnMessage}
+                onChange={e => setWarnMessage(e.target.value)}
+                placeholder="e.g. Your department has 8 pending complaints overdue. Immediate action required."
+                className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] text-white text-sm px-3 py-2.5 placeholder-white/20 focus:outline-none focus:border-amber-500/40 min-h-[80px] resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setWarnModal(null)} className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-white/60 hover:bg-white/5 text-sm">Cancel</button>
+              <button
+                onClick={handleSendWarn}
+                disabled={isSendingWarn}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-amber-500 text-black hover:bg-amber-400 transition-all disabled:opacity-50"
+              >
+                <Send className="w-4 h-4" />
+                {isSendingWarn ? 'Sending...' : 'Send Warning'}
               </button>
             </div>
           </motion.div>

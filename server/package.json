@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "prestart": "powershell -Command '$p=(Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if($p){ Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }'",
-    "dev": "nodemon --exec ts-node src/index.ts",
+    "predev": "powershell -Command \"$listenPid=(Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if($listenPid){ Stop-Process -Id $listenPid -Force -ErrorAction SilentlyContinue; Write-Host 'Freed port 5000' }\"",
+    "dev": "nodemon",
     "build": "tsc",
     "start": "yarn build && node dist/index.js",
     "seed": "ts-node src/seed.ts"

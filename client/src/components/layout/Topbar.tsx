@@ -108,7 +108,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
   };
 
   return (
-    <header className="h-16 flex items-center justify-between px-4 lg:px-6 border-b dark:border-white/[0.06] border-slate-200 premium-topbar sticky top-0 z-40 bg-surface-primary dark:bg-surface-glass backdrop-blur-xl">
+    <header className="h-16 flex items-center justify-between px-4 lg:px-6 border-b dark:border-white/[0.06] border-slate-200 premium-topbar sticky top-0 z-50 bg-surface-primary dark:bg-surface-glass backdrop-blur-xl">
       {/* Left: Menu + Search */}
       <div className="flex items-center gap-4 flex-1">
         <button
@@ -266,7 +266,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
               </button>
 
               {showDropdown && (
-                <div className="absolute right-0 top-12 w-56 dark:bg-slate-900 bg-white border dark:border-white/10 border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden py-1">
+                <div className="absolute right-0 top-full mt-2 w-56 dark:bg-slate-900 bg-white border dark:border-white/10 border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden py-1">
                   <div className="px-4 py-3 border-b dark:border-white/5 border-slate-100 bg-slate-50/50">
                     <p className="text-xs font-bold dark:text-white text-slate-900">{user.name}</p>
                     <p className="text-[10px] text-slate-500 truncate">{user.email}</p>

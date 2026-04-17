@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import { DELHI_CENTER, PRIORITY_COLORS, CATEGORY_ICONS } from '@/lib/constants';
 import 'leaflet/dist/leaflet.css';
+import HeatmapLayer from './HeatmapLayer';
 
 interface Complaint {
   _id?: string;
@@ -28,50 +29,95 @@ const markerColors: Record<string, string> = {
 };
 
 export default function CityMap({ complaints }: { complaints: Complaint[] }) {
+  const [viewMode, setViewMode] = useState<'markers' | 'heatmap'>('markers');
+
   const markers = useMemo(() => {
-    return (complaints || []).filter(
-      (c) => c && c.location && typeof c.location.lat === 'number' && typeof c.location.lng === 'number'
-    );
+    return (complaints || []).filter((c) => {
+      if (!c || !c.location) return false;
+      if (typeof c.location.lat === 'number' && typeof c.location.lng === 'number') return true;
+      if (Array.isArray(c.location.coordinates) && c.location.coordinates.length === 2) return true;
+      return false;
+    });
   }, [complaints]);
 
+  const heatData = useMemo(() => {
+    return markers.map((c) => {
+      let position: [number, number] = [DELHI_CENTER.lat, DELHI_CENTER.lng];
+      if (c.location && typeof c.location === 'object') {
+        if (typeof c.location.lat === 'number' && typeof c.location.lng === 'number') {
+          position = [c.location.lat, c.location.lng];
+        } else if (Array.isArray(c.location.coordinates) && c.location.coordinates.length === 2) {
+          position = [c.location.coordinates[1], c.location.coordinates[0]];
+        }
+      }
+      const intensity = c.priority === 'HIGH' ? 1.0 : c.priority === 'MEDIUM' ? 0.6 : 0.3;
+      return [...position, intensity] as [number, number, number];
+    });
+  }, [markers]);
+
   return (
-    <div className="glass-card overflow-hidden h-full min-h-[400px]">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
+    <div className="glass-card overflow-hidden flex flex-col h-full min-h-[450px]">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 shrink-0">
         <div>
           <h3 className="text-sm font-semibold text-white">Live Complaint Map</h3>
           <p className="text-xs text-white/40">Delhi NCR Region • Real-time tracking</p>
         </div>
-        <div className="flex items-center gap-4">
-          {(['HIGH', 'MEDIUM', 'LOW'] as const).map((p) => (
-            <div key={p} className="flex items-center gap-1.5">
-              <div
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: markerColors[p] }}
-              />
-              <span className="text-[10px] text-white/50 uppercase">{p}</span>
+        <div className="flex items-center gap-6">
+          {viewMode === 'markers' && (
+            <div className="flex items-center gap-4">
+              {(['HIGH', 'MEDIUM', 'LOW'] as const).map((p) => (
+                <div key={p} className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: markerColors[p] }} />
+                  <span className="text-[10px] text-white/50 uppercase">{p}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+          
+          <div className="flex items-center p-0.5 bg-black/40 rounded-lg border border-white/10">
+            <button
+              onClick={() => setViewMode('markers')}
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                viewMode === 'markers'
+                  ? 'bg-primary-500/20 text-primary-400'
+                  : 'text-white/40 hover:text-white/80'
+              }`}
+            >
+              Pins
+            </button>
+            <button
+              onClick={() => setViewMode('heatmap')}
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                viewMode === 'heatmap'
+                  ? 'bg-rose-500/20 text-rose-400'
+                  : 'text-white/40 hover:text-white/80'
+              }`}
+            >
+              Heatmap
+            </button>
+          </div>
         </div>
       </div>
-      <div className="h-[calc(100%-52px)]">
+      <div className="flex-1 w-full relative min-h-[400px]">
         <MapContainer
           center={[DELHI_CENTER.lat, DELHI_CENTER.lng]}
           zoom={11}
-          className="h-full w-full"
+          className="absolute inset-0 h-full w-full"
           zoomControl={true}
           attributionControl={false}
         >
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           />
-          {markers.map((c, idx) => {
+          {viewMode === 'heatmap' && <HeatmapLayer data={heatData} />}
+          
+          {viewMode === 'markers' && markers.map((c, idx) => {
             let position: [number, number] = [DELHI_CENTER.lat, DELHI_CENTER.lng];
             
             if (c.location && typeof c.location === 'object') {
               if (typeof c.location.lat === 'number' && typeof c.location.lng === 'number') {
                 position = [c.location.lat, c.location.lng];
               } else if (Array.isArray(c.location.coordinates) && c.location.coordinates.length === 2) {
-                // GeoJSON is [lng, lat]
                 position = [c.location.coordinates[1], c.location.coordinates[0]];
               }
             }

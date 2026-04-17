@@ -10,8 +10,9 @@ import {
   ChevronDown, Loader2
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
 
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   'Water Supply', 'Electricity', 'Traffic & Transport',
   'Sanitation', 'Public Safety', 'Environment',
   'Health', 'Education', 'Infrastructure',
@@ -89,20 +90,55 @@ export default function NewComplaintPage() {
   const [location, setLocation] = useState('');
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isCapturingLoc, setIsCapturingLoc] = useState(false);
+  const [dynamicCategories, setDynamicCategories] = useState<string[]>(DEFAULT_CATEGORIES);
 
-  // Auto-capture location
   useEffect(() => {
+    // Load categories dynamically from departments in database
+    const loadCategories = async () => {
+      try {
+        const res = await api.getPublicDepartments();
+        if (res?.success && res.data?.length > 0) {
+          const cats = new Set<string>();
+          res.data.forEach((dept: any) => {
+            if (dept.categories && Array.isArray(dept.categories)) {
+              dept.categories.forEach((cat: string) => cats.add(cat));
+            }
+          });
+          if (cats.size > 0) {
+            setDynamicCategories(Array.from(cats).sort());
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load categories', err);
+      }
+    }
+    loadCategories();
+  }, []);
+
+  // Auto-capture location (Moved to manual trigger)
+  const handleDetectLocation = () => {
     if ("geolocation" in navigator) {
       setIsCapturingLoc(true);
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        async (pos) => {
           setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+            const data = await res.json();
+            if (data && data.display_name && !location) {
+              setLocation(data.display_name);
+            }
+          } catch (e) {
+            console.error('Reverse geocoding failed', e);
+          }
           setIsCapturingLoc(false);
         },
         () => setIsCapturingLoc(false)
       );
+    } else {
+      alert("Geolocation is not supported by your browser");
     }
-  }, []);
+  };
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
@@ -224,6 +260,13 @@ export default function NewComplaintPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    
+    // Feature: Require photo for HIGH priority
+    if ((aiPriority === 'HIGH' || category === 'HIGH') && images.length === 0) {
+      setError('A photo evidence is strictly required for HIGH priority emergencies.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -467,7 +510,7 @@ export default function NewComplaintPage() {
                   className="w-full bg-transparent dark:text-white text-slate-900 font-bold focus:outline-none appearance-none cursor-pointer pr-10 py-2 border-b-2 border-slate-100 dark:border-white/5 transition-colors focus:border-primary-500/50"
                 >
                   <option value="" className="dark:bg-slate-900 bg-white">⚡ Auto-detect (AI)</option>
-                  {CATEGORIES.map(c => (
+                  {dynamicCategories.map(c => (
                     <option key={c} value={c} className="dark:bg-slate-900 bg-white">{c}</option>
                   ))}
                 </select>
@@ -476,15 +519,25 @@ export default function NewComplaintPage() {
             </div>
             {/* Location */}
             <div className="glass-card rounded-[2.5rem] p-6 shadow-xl border-2">
-              <label className="flex items-center gap-2 text-[10px] font-black text-slate-500 mb-4 uppercase tracking-widest">
-                <MapPin className="w-4 h-4 text-rose-500 font-bold" />
-                {t('exactLocation')} *
-              </label>
+              <div className="flex items-center justify-between mb-4">
+                <label className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  <MapPin className="w-4 h-4 text-rose-500 font-bold" />
+                  {t('exactLocation')} *
+                </label>
+                <button
+                  type="button"
+                  onClick={handleDetectLocation}
+                  disabled={isCapturingLoc}
+                  className="text-[10px] font-black uppercase tracking-widest text-primary-600 dark:text-primary-400 bg-primary-500/10 px-3 py-1.5 rounded-lg border border-primary-500/20 hover:bg-primary-500/20 transition-colors disabled:opacity-50"
+                >
+                  {isCapturingLoc ? 'Locating...' : 'Detect'}
+                </button>
+              </div>
               <input
                 type="text"
                 value={location}
                 onChange={e => setLocation(e.target.value)}
-                placeholder="e.g. Lajpat Nagar Market, Block C"
+                placeholder={isCapturingLoc ? "Detecting GPS location..." : "e.g. Lajpat Nagar Market, Block C"}
                 required
                 className="w-full bg-transparent dark:text-white text-slate-900 font-bold placeholder-slate-300 dark:placeholder-slate-700 focus:outline-none py-2 border-b-2 border-slate-100 dark:border-white/5 transition-colors focus:border-rose-500/50"
               />
@@ -496,7 +549,7 @@ export default function NewComplaintPage() {
             <div className="flex items-center justify-between mb-6">
               <label className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                 <Camera className="w-4 h-4 text-indigo-500" />
-                {t('photoEvidence')}
+                {t('photoEvidence')} {aiPriority === 'HIGH' && <span className="text-rose-500 normal-case tracking-normal ml-1">(Required for HIGH priority)</span>}
               </label>
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-lg">
                 {images.length} / 5 photos

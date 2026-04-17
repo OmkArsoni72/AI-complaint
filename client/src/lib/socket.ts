@@ -7,7 +7,8 @@ let socket: Socket | undefined;
 
 export const getSocket = (token?: string | null) => {
   if (!socket) {
-    socket = io(SOCKET_URL, {
+    socket = io(SOCKET_URL || undefined, {
+      path: '/socket.io',
       // Start with polling to avoid noisy websocket handshake failures on strict networks.
       transports: ['polling', 'websocket'],
       upgrade: true,

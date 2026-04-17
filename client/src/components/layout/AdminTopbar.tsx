@@ -80,7 +80,7 @@ export default function AdminTopbar({ onMenuToggle }: TopbarProps) {
   };
 
   return (
-    <header className="h-16 flex items-center justify-between px-4 lg:px-6 border-b border-slate-200/70 premium-topbar dark:border-white/[0.06]">
+    <header className="relative z-50 h-16 flex items-center justify-between px-4 lg:px-6 border-b border-slate-200/70 premium-topbar dark:border-white/[0.06]">
       <div className="flex items-center gap-4 flex-1">
         <button
           onClick={onMenuToggle}
@@ -208,7 +208,7 @@ export default function AdminTopbar({ onMenuToggle }: TopbarProps) {
             </button>
 
             {showProfileMenu && (
-              <div className="absolute right-0 top-12 w-44 dark:bg-slate-900 bg-white border dark:border-white/10 border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden">
+              <div className="absolute right-0 top-full mt-2 w-44 dark:bg-slate-900 bg-white border dark:border-white/10 border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden">
                 <button
                   onClick={() => {
                     setShowProfileMenu(false);

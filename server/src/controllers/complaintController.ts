@@ -320,7 +320,21 @@ export const addNote = async (req: AuthRequest, res: Response) => {
 export const getOfficerComplaints = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user?.userId) return res.status(401).json({ success: false, error: 'Not authenticated' });
-    const complaints = await Complaint.find({ assignedTo: req.user.userId }).sort({ createdAt: -1 });
+
+    const userId = req.user.userId;
+    const deptId = req.user.departmentId ?? null;
+
+    // Match by userId OR sub-department assignment
+    const orClauses: any[] = [{ assignedTo: userId }];
+    if (deptId) {
+      orClauses.push(
+        { assignedSubDepartment: deptId },
+        { assignedTo: deptId.toString() },
+        { departmentId: deptId }
+      );
+    }
+
+    const complaints = await Complaint.find({ $or: orClauses }).sort({ createdAt: -1 });
     res.json({ success: true, data: complaints });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -332,36 +346,63 @@ export const updateOfficerComplaintStatus = async (req: AuthRequest, res: Respon
   try {
     const { status, remarks, proofFileName } = req.body;
     if (!status) return res.status(400).json({ success: false, error: 'status is required' });
-    const complaint = await Complaint.findOne({ complaintId: req.params.id, assignedTo: req.user?.userId });
+
+    const paramId = String(req.params.id);
+    const userId = req.user?.userId;
+    const deptId = req.user?.departmentId ?? null;
+
+    // Find by MongoDB _id OR complaintId string — whichever the client sends
+    let complaint: any = null;
+    if (/^[a-f\d]{24}$/i.test(paramId)) {
+      complaint = await Complaint.findById(paramId);
+    }
+    if (!complaint) {
+      complaint = await Complaint.findOne({ complaintId: paramId });
+    }
     if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found' });
 
+    // Security: only allow if assigned to this officer/sub-dept
+    const isAssigned =
+      complaint.assignedTo === userId ||
+      (deptId && (
+        complaint.assignedTo === deptId.toString() ||
+        complaint.assignedSubDepartment?.toString() === deptId.toString() ||
+        complaint.departmentId?.toString() === deptId.toString()
+      ));
+
+    if (!isAssigned) {
+      return res.status(403).json({ success: false, error: 'Not authorized to update this complaint' });
+    }
+
     complaint.status = status;
-    if (status === 'RESOLVED') {
-      complaint.resolvedAt = new Date();
-    }
-    if (typeof proofFileName === 'string' && proofFileName.trim()) {
-      complaint.proofFileName = proofFileName.trim();
-    }
     if (remarks) {
+      complaint.lastRemark = remarks;
       if (!complaint.notes) complaint.notes = [];
       complaint.notes.push({
-        text: remarks,
+        text: `[${status}] ${remarks}`,
         addedBy: req.user?.name || 'Officer',
         addedAt: new Date(),
         attachment: null,
       });
+    }
+    if (status === 'RESOLVED') {
+      complaint.resolvedAt = new Date();
+      if (!remarks) complaint.lastRemark = 'Issue resolved by sub-department';
+    }
+    if (typeof proofFileName === 'string' && proofFileName.trim()) {
+      complaint.proofFileName = proofFileName.trim();
     }
 
     await complaint.save();
 
     await AuditLog.create({
       action: 'OFFICER_UPDATE_STATUS',
-      performedBy: req.user?.userId || 'system',
+      performedBy: userId || 'system',
       performedByName: req.user?.name || 'Officer',
       role: req.user?.role || 'OFFICER',
       targetType: 'complaint',
       targetId: complaint.complaintId,
-      details: `Status -> ${status}`,
+      details: `Status -> ${status}${remarks ? ': ' + remarks : ''}`,
     });
 
     res.json({ success: true, data: complaint });

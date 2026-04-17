@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
 import {
   Briefcase, Clock, CheckCircle2, AlertTriangle, FileText,
   MapPin, User, UploadCloud, Send, ArrowUpRight, Activity,
@@ -29,22 +29,16 @@ const PRIORITY_CONFIG: Record<string, { color: string; bg: string }> = {
 
 export default function SubDepartmentDashboard() {
   const { user, isLoading } = useAuth();
-  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+  
   const [complaints, setComplaints] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'active' | 'resolved'>('all');
   const [selectedComplaint, setSelectedComplaint] = useState<any>(null);
   const [updateStatus, setUpdateStatus] = useState('IN_PROGRESS');
   const [remarks, setRemarks] = useState('');
   const [proofFileName, setProofFileName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    if (!isLoading) {
-      if (!user) router.push('/sub-department/login');
-      else if (user.role !== 'OFFICER' && !user.isSubDepartment) router.push('/sub-department/login');
-    }
-  }, [user, isLoading, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -70,12 +64,12 @@ export default function SubDepartmentDashboard() {
     );
   }, [complaints]);
 
-  const filteredComplaints = useMemo(() => {
+  const filteredList = useMemo(() => {
     switch (activeTab) {
       case 'pending': return complaints.filter(c => c.status === 'PENDING');
       case 'active': return complaints.filter(c => ['IN_PROGRESS', 'UNDER_REVIEW'].includes(c.status));
       case 'resolved': return complaints.filter(c => c.status === 'RESOLVED');
-      default: return complaints;
+      default: return []; // We don't render lists in overview generally
     }
   }, [complaints, activeTab]);
 
@@ -128,98 +122,96 @@ export default function SubDepartmentDashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* ─── Hero Header ─── */}
-      <div className="relative rounded-2xl overflow-hidden p-6 lg:p-8 border border-white/[0.06] bg-gradient-to-br from-indigo-950/60 via-slate-900/80 to-slate-950/90 shadow-xl">
-        <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/8 rounded-full blur-3xl -mr-24 -mt-24"></div>
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-cyan-500/6 rounded-full blur-3xl -ml-16 -mb-16"></div>
-        
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <Briefcase className="w-5 h-5 text-white" />
-              </div>
+      {/* ─── SCENARIO 1: OVERVIEW TAB ─── */}
+      {activeTab === 'overview' && (
+        <>
+          <div className="relative rounded-2xl overflow-hidden p-6 lg:p-8 border border-white/[0.06] bg-gradient-to-br from-indigo-950/60 via-slate-900/80 to-slate-950/90 shadow-xl">
+            <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/8 rounded-full blur-3xl -mr-24 -mt-24"></div>
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-cyan-500/6 rounded-full blur-3xl -ml-16 -mb-16"></div>
+            
+            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl lg:text-3xl font-extrabold text-white uppercase tracking-tight">
-                  Field Operations Desk
-                </h1>
-                <p className="text-xs text-white/40 font-medium mt-0.5">
-                  {user?.department || 'Sub-Department'} • Assigned Grievance Work
-                </p>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <Briefcase className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl lg:text-3xl font-extrabold text-white uppercase tracking-tight">
+                      Field Operations Desk
+                    </h1>
+                    <p className="text-xs text-white/40 font-medium mt-0.5">
+                      {user?.department || 'Sub-Department'} • Assigned Grievance Work
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-widest text-white/30 font-bold">Performance</p>
+                  <p className="text-2xl font-black text-white">{resolvedPercent}%</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center">
+                  <TrendingUp className={`w-5 h-5 ${resolvedPercent >= 50 ? 'text-emerald-400' : 'text-amber-400'}`} />
+                </div>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-[10px] uppercase tracking-widest text-white/30 font-bold">Performance</p>
-              <p className="text-2xl font-black text-white">{resolvedPercent}%</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center">
-              <TrendingUp className={`w-5 h-5 ${resolvedPercent >= 50 ? 'text-emerald-400' : 'text-amber-400'}`} />
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ─── Stats Grid ─── */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {[
-          { label: 'Total Assigned', value: stats.total, icon: FileText, gradient: 'from-slate-500/20 to-slate-600/10', text: 'text-white', border: 'border-white/10' },
-          { label: 'Awaiting Action', value: stats.PENDING, icon: Clock, gradient: 'from-amber-500/20 to-amber-600/10', text: 'text-amber-400', border: 'border-amber-500/20' },
-          { label: 'In Progress', value: stats.IN_PROGRESS + (stats.UNDER_REVIEW || 0), icon: Activity, gradient: 'from-sky-500/20 to-sky-600/10', text: 'text-sky-400', border: 'border-sky-500/20' },
-          { label: 'Completed', value: stats.RESOLVED, icon: CheckCircle2, gradient: 'from-emerald-500/20 to-emerald-600/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
-          { label: 'Escalated', value: stats.ESCALATED, icon: AlertTriangle, gradient: 'from-rose-500/20 to-rose-600/10', text: 'text-rose-400', border: 'border-rose-500/20' },
-        ].map((s, i) => {
-          const Icon = s.icon;
-          return (
-            <motion.div
-              key={s.label}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className={`rounded-xl p-4 border ${s.border} bg-gradient-to-br ${s.gradient} backdrop-blur-sm`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <Icon className={`w-4 h-4 ${s.text} opacity-60`} />
-                <span className={`text-2xl font-black ${s.text}`}>{s.value}</span>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {[
+              { label: 'Total Assigned', value: stats.total, icon: FileText, gradient: 'from-slate-500/20 to-slate-600/10', text: 'text-white', border: 'border-white/10' },
+              { label: 'Awaiting Action', value: stats.PENDING, icon: Clock, gradient: 'from-amber-500/20 to-amber-600/10', text: 'text-amber-400', border: 'border-amber-500/20' },
+              { label: 'In Progress', value: stats.IN_PROGRESS + (stats.UNDER_REVIEW || 0), icon: Activity, gradient: 'from-sky-500/20 to-sky-600/10', text: 'text-sky-400', border: 'border-sky-500/20' },
+              { label: 'Completed', value: stats.RESOLVED, icon: CheckCircle2, gradient: 'from-emerald-500/20 to-emerald-600/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
+              { label: 'Escalated', value: stats.ESCALATED, icon: AlertTriangle, gradient: 'from-rose-500/20 to-rose-600/10', text: 'text-rose-400', border: 'border-rose-500/20' },
+            ].map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className={`rounded-xl p-4 border ${s.border} bg-gradient-to-br ${s.gradient} backdrop-blur-sm`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <Icon className={`w-4 h-4 ${s.text} opacity-60`} />
+                    <span className={`text-2xl font-black ${s.text}`}>{s.value}</span>
+                  </div>
+                  <p className="text-[9px] uppercase tracking-[0.15em] font-bold text-white/30">{s.label}</p>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {complaints.filter(c => c.status === 'PENDING').length > 0 && (
+            <div className="relative rounded-xl overflow-hidden p-4 border border-amber-500/20 bg-gradient-to-r from-amber-950/40 via-slate-900/60 to-slate-950/80">
+              <div className="absolute top-0 left-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl -ml-10 -mt-10"></div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center">
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-amber-300 uppercase tracking-tight">New Work Assigned by Admin</h3>
+                    <p className="text-[10px] text-amber-400/50">{complaints.filter(c => c.status === 'PENDING').length} task(s) awaiting your action in the pending tab.</p>
+                  </div>
+                </div>
               </div>
-              <p className="text-[9px] uppercase tracking-[0.15em] font-bold text-white/30">{s.label}</p>
-            </motion.div>
-          );
-        })}
-      </div>
+            </div>
+          )}
+        </>
+      )}
 
-      {/* ─── Tab Navigation ─── */}
-      <div className="flex gap-1 p-1 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-        {([
-          { key: 'all', label: 'All Tasks', count: stats.total },
-          { key: 'pending', label: 'New / Pending', count: stats.PENDING },
-          { key: 'active', label: 'Active Work', count: stats.IN_PROGRESS + (stats.UNDER_REVIEW || 0) },
-          { key: 'resolved', label: 'Completed', count: stats.RESOLVED },
-        ] as const).map(t => (
-          <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key)}
-            className={`flex-1 px-4 py-2.5 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === t.key
-                ? 'bg-white/10 text-white shadow-sm border border-white/10'
-                : 'text-white/35 hover:text-white/60 hover:bg-white/5'
-            }`}
-          >
-            {t.label} <span className={`ml-1.5 ${activeTab === t.key ? 'text-indigo-400' : 'text-white/20'}`}>({t.count})</span>
-          </button>
-        ))}
-      </div>
-
-      {/* ─── Complaint Cards ─── */}
-      <div className="space-y-3">
-        {filteredComplaints.length === 0 ? (
-          <div className="text-center py-16 rounded-2xl border border-white/5 bg-white/[0.01]">
-            <Briefcase className="w-10 h-10 text-white/10 mx-auto mb-3" />
-            <p className="text-sm text-white/25">No complaints in this category</p>
+      {/* ─── SCENARIO 2: ALL OTHER LIST TABS ─── */}
+      {activeTab !== 'overview' && (
+        <div className="space-y-3">
+          <div className="mb-4">
+            <h2 className="text-xl font-extrabold text-white capitalize">{activeTab === 'pending' ? 'Tasks Awaiting Action' : activeTab === 'active' ? 'Work In Progress' : 'Completed Work'}</h2>
+            <p className="text-xs text-white/40 mt-1">Select a task to review details or update its status.</p>
           </div>
-        ) : (
-          filteredComplaints.map((c: any, i: number) => {
+
+          {filteredList.length === 0 ? (
+            <div className="text-center py-16 rounded-2xl border border-white/5 bg-white/[0.01]">
+              <Briefcase className="w-10 h-10 text-white/10 mx-auto mb-3" />
+              <p className="text-sm text-white/25">No complaints in this category</p>
+            </div>
+          ) : (
+            filteredList.map((c: any, i: number) => {
             const statusConf = STATUS_CONFIG[c.status] || STATUS_CONFIG.PENDING;
             const priorityConf = PRIORITY_CONFIG[c.priority] || PRIORITY_CONFIG.MEDIUM;
             const StatusIcon = statusConf.icon;
@@ -262,69 +254,41 @@ export default function SubDepartmentDashboard() {
                     </span>
                   </div>
 
-                  <div className="flex items-center flex-wrap gap-3 text-[11px]">
-                    {/* Status */}
-                    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${statusConf.bg} ${statusConf.color}`}>
-                      <StatusIcon className="w-3 h-3" />
+                  <div className="flex items-center flex-wrap gap-4 mt-2">
+                    {/* Simplified Status */}
+                    <span className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-bold ${statusConf.bg} ${statusConf.color}`}>
+                      <StatusIcon className="w-3.5 h-3.5" />
                       {statusConf.label}
                     </span>
-                    {/* Location */}
-                    <span className="flex items-center gap-1 text-white/35">
-                      <MapPin className="w-3 h-3" />
-                      {c.location?.area || 'Unknown'}
+                    {/* Clean Location */}
+                    <span className="text-[12px] text-white/50 font-medium">
+                      📍 {c.location?.area || 'Unknown Location'}
                     </span>
-                    {/* Category */}
-                    <span className="text-white/25 bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
-                      {c.category}
+                    {/* Clean Category */}
+                    <span className="text-[12px] text-white/40">
+                      📂 {c.category}
                     </span>
-                    {/* User */}
-                    <span className="flex items-center gap-1 text-white/30">
-                      <User className="w-3 h-3" />
-                      {c.userName || 'Citizen'}
-                    </span>
-                    {/* SLA */}
-                    {slaRemaining !== null && (
-                      <span className={`flex items-center gap-1 font-mono ${isOverdue ? 'text-rose-400' : 'text-white/30'}`}>
-                        <Clock className="w-3 h-3" />
-                        {isOverdue ? 'OVERDUE' : `${slaHours}h left`}
+                    
+                    {/* SLA (Only show if not resolved) */}
+                    {c.status !== 'RESOLVED' && slaRemaining !== null && (
+                      <span className={`ml-auto text-[11px] font-black uppercase px-2 py-1 rounded ${isOverdue ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-500/20 text-slate-300'}`}>
+                        {isOverdue ? '⚠️ Overdue' : `⏱️ ${slaHours} Hrs Left`}
                       </span>
                     )}
-                    {/* Date */}
-                    <span className="flex items-center gap-1 text-white/20 ml-auto">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(c.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                    </span>
-                  </div>
 
-                  {/* Quick Actions for PENDING */}
-                  {c.status === 'PENDING' && (
-                    <div className="flex gap-2 mt-3 pt-3 border-t border-white/5">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleAccept(c); }}
-                        className="flex items-center gap-1.5 px-4 py-2 text-[11px] font-bold rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 hover:bg-indigo-500/25 transition-colors"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Accept & Start Work
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedComplaint(c);
-                          setUpdateStatus('ESCALATED');
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-colors"
-                      >
-                        <ArrowUpRight className="w-3.5 h-3.5" />
-                        Escalate
-                      </button>
-                    </div>
-                  )}
+                    {c.status === 'RESOLVED' && (
+                       <span className="ml-auto text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
+                         ✅ Completed on {new Date(c.resolvedAt || c.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                       </span>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             );
           })
         )}
       </div>
+      )}
 
       {/* ─── Action Modal ─── */}
       <AnimatePresence>

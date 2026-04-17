@@ -15,6 +15,7 @@ interface Complaint {
   timeline?: { step: string; time: string }[];
   location?: { area?: string; district?: string };
   assignedOfficerName?: string | null;
+  _id?: string;
 }
 
 export type AdvancedSectionKey =
@@ -427,11 +428,11 @@ export default function AdminAdvancedSections({
           )}
 
           {metrics.workStatusRows.map((row) => (
-            <div key={row.complaintId} className="bg-white/5 border border-white/10 rounded-lg p-3">
+            <div key={row.complaintId || row._id} className="bg-white/5 border border-white/10 rounded-lg p-3">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 mb-2">
                 <div>
                   <p className="text-sm text-white font-semibold">
-                    #{row.complaintId.slice(-6)} • {row.category}
+                    #{(row.complaintId || row._id || '').toString().slice(-6)} • {row.category}
                   </p>
                   <p className="text-xs text-white/50">
                     {row.location?.area || 'Unknown area'} | Officer: {row.assignedOfficerName || 'Unassigned'}
@@ -484,7 +485,7 @@ export default function AdminAdvancedSections({
                 <div className="flex flex-wrap gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => handleInlineStatusChange(row.complaintId, 'PENDING')}
+                    onClick={() => handleInlineStatusChange(row.complaintId || row._id || '', 'PENDING')}
                     disabled={updatingId === row.complaintId || row.status === 'PENDING'}
                     className="px-2.5 py-1 text-[11px] rounded-md border border-warning-500/30 bg-warning-500/10 text-warning-300 disabled:opacity-50"
                   >
@@ -492,7 +493,7 @@ export default function AdminAdvancedSections({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleInlineStatusChange(row.complaintId, 'IN_PROGRESS')}
+                    onClick={() => handleInlineStatusChange(row.complaintId || row._id || '', 'IN_PROGRESS')}
                     disabled={updatingId === row.complaintId || row.status === 'IN_PROGRESS'}
                     className="px-2.5 py-1 text-[11px] rounded-md border border-primary-500/30 bg-primary-500/10 text-primary-300 disabled:opacity-50"
                   >
@@ -500,7 +501,7 @@ export default function AdminAdvancedSections({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleInlineStatusChange(row.complaintId, 'RESOLVED')}
+                    onClick={() => handleInlineStatusChange(row.complaintId || row._id || '', 'RESOLVED')}
                     disabled={updatingId === row.complaintId || row.status === 'RESOLVED'}
                     className="px-2.5 py-1 text-[11px] rounded-md border border-success-500/30 bg-success-500/10 text-success-300 disabled:opacity-50"
                   >
@@ -621,7 +622,7 @@ export default function AdminAdvancedSections({
               <div className="space-y-1 text-white/70">
                 {aiInsights.similar.length === 0 && <p>No similar complaints in same area.</p>}
                 {aiInsights.similar.map((s) => (
-                  <p key={s.complaintId}>#{s.complaintId.slice(-6)} - {s.category} ({s.location?.area || 'Unknown'})</p>
+                  <p key={s.complaintId || s._id}>#{(s.complaintId || s._id || '').toString().slice(-6)} - {s.category} ({s.location?.area || 'Unknown'})</p>
                 ))}
               </div>
             </div>

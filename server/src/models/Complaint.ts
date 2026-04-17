@@ -33,6 +33,9 @@ export interface IComplaint extends Document {
   assignedOfficer: string;
   assignedOfficerName: string;
   assignedTo: string;
+  assignedSubDepartment?: mongoose.Types.ObjectId | string;
+  assignedSubDepartmentName?: string;
+  lastRemark?: string;
   feedback: {
     satisfied: boolean;
     comment: string;
@@ -80,6 +83,9 @@ const ComplaintSchema = new Schema<IComplaint>(
     assignedOfficer: { type: String, default: 'Unassigned' },
     assignedOfficerName: { type: String, default: '' },
     assignedTo: { type: String, default: '' },
+    assignedSubDepartment: { type: Schema.Types.ObjectId, ref: 'Department', default: null },
+    assignedSubDepartmentName: { type: String, default: '' },
+    lastRemark: { type: String, default: '' },
     feedback: {
       satisfied: { type: Boolean },
       comment: { type: String },

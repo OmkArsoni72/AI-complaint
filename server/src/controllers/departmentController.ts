@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import Department from '../models/Department';
 import AuditLog from '../models/AuditLog';
 import { AuthRequest } from '../middleware/auth';
@@ -13,6 +13,16 @@ export const getDepartments = async (req: AuthRequest, res: Response) => {
     }
 
     const departments = await Department.find(query).sort({ name: 1 });
+    res.json({ success: true, data: departments });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// GET /api/departments/public
+export const getPublicDepartments = async (req: Request, res: Response) => {
+  try {
+    const departments = await Department.find({ isActive: true }).select('name categories').sort({ name: 1 });
     res.json({ success: true, data: departments });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

@@ -10,6 +10,7 @@ import {
   Play, Pause, X, User as UserIcon, Timer, PlusCircle
 } from 'lucide-react';
 import { onEvent } from '@/lib/socket';
+import toast from 'react-hot-toast';
 
 interface TimelineStep {
   step: string;
@@ -114,11 +115,33 @@ export default function ComplaintDetailPage({ params: paramsPromise }: { params:
       if (data.success) { 
         setComplaint(data.data); 
         setFeedbackSubmitted(true); 
+        toast.success(satisfied ? 'Case closed successfully.' : 'Case escalated for review.');
       }
     } catch { 
-      alert('Failed to submit feedback'); 
+      toast.error('Failed to submit feedback'); 
     } finally { 
       setIsUpdating(false); 
+    }
+  };
+
+  const handleManualEscalation = async () => {
+    if (!confirm('Are you sure you want to escalate this overdue grievance to higher authorities?')) return;
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`/api/complaints/${params.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'ESCALATED', remarks: 'Citizen manually escalated due to breached SLA.' }),
+      });
+      const data = await res.json();
+      if (data.success) { 
+        setComplaint(data.data);
+        toast.success('Grievance Escalated to Nodal Officer.');
+      }
+    } catch {
+      toast.error('Failed to escalate');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -247,6 +270,15 @@ export default function ComplaintDetailPage({ params: paramsPromise }: { params:
                     <Clock className="w-4.5 h-4.5" />
                     {timeLeft || 'Calculating...'}
                   </p>
+                  {timeLeft.includes('Breached') && !['RESOLVED', 'CLOSED', 'ESCALATED'].includes(complaint.status?.toUpperCase()) && (
+                    <button 
+                      onClick={handleManualEscalation}
+                      disabled={isUpdating}
+                      className="mt-2 text-[10px] uppercase font-black tracking-widest bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded-lg transition-colors shadow-lg shadow-rose-500/20"
+                    >
+                      Escalate Now
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -323,11 +355,12 @@ export default function ComplaintDetailPage({ params: paramsPromise }: { params:
             )}
 
             {/* ── Resolution Feedback ────────────────────────────────────────────────── */}
-            <div className="p-8 md:p-12 border-t dark:border-white/5 border-slate-100 bg-gradient-to-b from-primary-500/[0.02] to-transparent">
-              <h3 className="text-xl font-black dark:text-white text-slate-900 mb-8 flex items-center gap-3 tracking-tight">
-                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                Public Satisfaction Review
-              </h3>
+            {complaint.status?.toUpperCase() === 'RESOLVED' && (
+              <div className="p-8 md:p-12 border-t dark:border-white/5 border-slate-100 bg-gradient-to-b from-primary-500/[0.02] to-transparent">
+                <h3 className="text-xl font-black dark:text-white text-slate-900 mb-8 flex items-center gap-3 tracking-tight">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                  Public Satisfaction Review
+                </h3>
 
               <AnimatePresence mode="wait">
                 {feedbackSubmitted ? (
@@ -349,10 +382,11 @@ export default function ComplaintDetailPage({ params: paramsPromise }: { params:
                         <ThumbsDown className="w-5 h-5" /> Not Satisfied
                       </button>
                     </div>
-                  </div>
-                )}
-              </AnimatePresence>
-            </div>
+                    </div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
 
           {/* ── Metadata Disclaimer ────────────────────────────────────────────────── */}

@@ -125,6 +125,11 @@ export const api = {
   getSubDepartmentComplaints: async (id: string) => {
     return await fetchApi<any>(`/admin/sub-departments/${id}/complaints`);
   },
+  // ── Departments ──────────────────────────────────────────
+  getPublicDepartments: async () => {
+    return await fetchApi<any[]>('/departments/public');
+  },
+
   // ── Complaints ──────────────────────────────────────────
   getComplaints: async (params?: string) => {
     return await fetchApi<any[]>(`/complaints${params ? `?${params}` : ''}`);

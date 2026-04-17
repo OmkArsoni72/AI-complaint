@@ -24,6 +24,9 @@ import {
   MessageSquare,
   ShieldCheck,
   Tag,
+  Send,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
@@ -58,7 +61,10 @@ export default function AdminSidebar({ collapsed, onToggle }: SidebarProps) {
       ]
     : isSubDepartment
     ? [
-        { label: 'Dashboard', icon: LayoutDashboard, href: subDeptBase },
+        { label: 'Overview', icon: LayoutDashboard, href: `${subDeptBase}?tab=overview`, tabKey: 'overview' },
+        { label: 'Awaiting Action', icon: Clock, href: `${subDeptBase}?tab=pending`, tabKey: 'pending' },
+        { label: 'Active Tasks', icon: Activity, href: `${subDeptBase}?tab=active`, tabKey: 'active' },
+        { label: 'Completed', icon: CheckCircle2, href: `${subDeptBase}?tab=resolved`, tabKey: 'resolved' },
       ]
     : [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/admin?section=dashboard', sectionKey: 'dashboard' },
@@ -71,6 +77,7 @@ export default function AdminSidebar({ collapsed, onToggle }: SidebarProps) {
         { label: 'Communication', icon: MessageSquare, href: '/admin?section=communication', sectionKey: 'communication' },
         { label: 'Control Limits', icon: ShieldCheck, href: '/admin?section=controls', sectionKey: 'controls' },
         { label: 'Sub-Departments', icon: Tag, href: '/admin?section=subdepartments', sectionKey: 'subdepartments' },
+        { label: 'Assign Work', icon: Send, href: '/admin?section=assign-work', sectionKey: 'assign-work' },
         { label: 'Analytics', icon: BarChart3, href: '/analytics' },
         { label: 'Officer Desk', icon: Users, href: '/officer' },
       ];
@@ -124,8 +131,13 @@ export default function AdminSidebar({ collapsed, onToggle }: SidebarProps) {
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const isSectionItem = !!(item as any).sectionKey;
+          const isTabItem = !!(item as any).tabKey;
+          const subDeptTab = searchParams.get('tab') || 'overview';
+
           const isActive = isSectionItem
             ? pathname === '/admin' && adminSection === (item as any).sectionKey
+            : isTabItem
+            ? pathname === subDeptBase && subDeptTab === (item as any).tabKey
             : item.href === '/superadmin/controlroom'
             ? pathname === item.href || pathname === '/superadmin'
             : item.href === '/superadmin/adminpanel'

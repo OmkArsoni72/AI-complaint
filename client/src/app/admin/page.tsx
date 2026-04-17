@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Shield, Users, PlusCircle, PencilLine, Trash2, MapPin, Tag, AlertCircle, Bell, Eye, X, ChevronRight, Clock } from 'lucide-react';
+import { Shield, Users, PlusCircle, PencilLine, Trash2, MapPin, Tag, AlertCircle, Bell, Eye, X, ChevronRight, Clock, Send, ArrowRight, CheckCircle2, Activity, MessageSquare } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/lib/auth';
 import { onEvent } from '@/lib/socket';
@@ -46,6 +46,8 @@ export default function AdminPage() {
     governmentId: '',
   });
   const hasShownInitialPopup = useRef(false);
+  // Track sub-department selection per complaint in assign-work section
+  const [assignSelections, setAssignSelections] = useState<Record<string, string>>({});
 
   const showComplaintPopup = (data: any, title = 'New Complaint') => {
     toast.custom((t) => (
@@ -180,14 +182,20 @@ export default function AdminPage() {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const [compRes, subRes, deptRes, officersRes] = await Promise.all([
+      // Use Promise.allSettled so one failing request doesn't block the rest
+      const results = await Promise.allSettled([
         api.getAdminComplaints(),
         api.getSubDepartments(),
         api.fetchApi<any>('/admin/department'),
         api.getAdminOfficers(),
       ]);
 
-      if (compRes.success) {
+      const compRes = results[0].status === 'fulfilled' ? results[0].value : null;
+      const subRes = results[1].status === 'fulfilled' ? results[1].value : null;
+      const deptRes = results[2].status === 'fulfilled' ? results[2].value : null;
+      const officersRes = results[3].status === 'fulfilled' ? results[3].value : null;
+
+      if (compRes?.success) {
         const complaintList = compRes.data as any[];
         setComplaints(complaintList);
 
@@ -197,8 +205,8 @@ export default function AdminPage() {
           hasShownInitialPopup.current = true;
         }
       }
-      if (subRes.success) setSubDepartments(subRes.data as any[]);
-      if (officersRes.success) {
+      if (subRes?.success) setSubDepartments(subRes.data as any[]);
+      if (officersRes?.success) {
         const normalizedOfficers = (officersRes.data as any[]).map((o: any) => ({
           id: o._id || o.id,
           name: o.name,
@@ -208,7 +216,7 @@ export default function AdminPage() {
       }
       
       // Fetch full department info from API
-      if (deptRes.success && deptRes.data) {
+      if (deptRes?.success && deptRes.data) {
         setDepartmentInfo(deptRes.data);
         if (deptRes.data.categories) {
           setDepartmentCategories(Array.isArray(deptRes.data.categories) ? deptRes.data.categories : []);
@@ -223,6 +231,22 @@ export default function AdminPage() {
     };
     fetchData();
   }, [user]);
+
+  // Auto-refresh every 30s when on assign-work section
+  // Use searchParams directly (activeSection is derived later in render)
+  useEffect(() => {
+    if (searchParams.get('section') !== 'assign-work') return;
+    if (!token || !user) return; // Only run when authenticated
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.getAdminComplaints();
+        if (res.success) setComplaints(res.data as any[]);
+      } catch {
+        // Silently ignore network errors in background refresh
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [searchParams, token, user]);
 
   // Listen for real-time complaint notifications
   useEffect(() => {
@@ -272,6 +296,7 @@ export default function AdminPage() {
     'dashboard',
     'complaints',
     'subdepartments',
+    'assign-work',
     'work-status',
     'performance',
     'alerts',
@@ -282,7 +307,7 @@ export default function AdminPage() {
   ] as const;
 
   const sectionParam = (searchParams.get('section') || 'dashboard') as (typeof validSections)[number];
-  const activeSection: 'dashboard' | 'complaints' | 'subdepartments' | AdvancedSectionKey =
+  const activeSection: 'dashboard' | 'complaints' | 'subdepartments' | 'assign-work' | AdvancedSectionKey =
     validSections.includes(sectionParam) ? (sectionParam as any) : 'dashboard';
 
   if (isLoading || !user || user.role === 'PUBLIC') return null;
@@ -478,6 +503,231 @@ export default function AdminPage() {
             </div>
           </div>
           )}
+
+          {activeSection === 'assign-work' && (() => {
+            const assignedComplaints = complaints.filter((c: any) => c.assignedSubDepartment);
+            const unassignedComplaints = complaints.filter((c: any) => !c.assignedSubDepartment && c.status !== 'RESOLVED' && c.status !== 'REJECTED');
+
+            const getStatusProgress = (status: string) => {
+              if (status === 'PENDING') return { pct: 10, color: 'bg-warning-400', label: 'Awaiting Start', icon: '⏳' };
+              if (status === 'IN_PROGRESS') return { pct: 55, color: 'bg-primary-400', label: 'Work In Progress', icon: '🔧' };
+              if (status === 'UNDER_REVIEW') return { pct: 80, color: 'bg-violet-400', label: 'Under Review', icon: '🔍' };
+              if (status === 'ESCALATED') return { pct: 75, color: 'bg-danger-400', label: 'Escalated', icon: '🚨' };
+              if (status === 'RESOLVED') return { pct: 100, color: 'bg-success-400', label: 'Resolved', icon: '✅' };
+              return { pct: 0, color: 'bg-white/20', label: status, icon: '•' };
+            };
+
+            return (
+            <div>
+              {/* Header */}
+              <div className="flex items-center justify-between gap-3 mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center">
+                    <Send className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-white uppercase tracking-tight">Work Assignment & Status Tracker</h2>
+                    <p className="text-xs text-white/40">{assignedComplaints.length} assigned • {unassignedComplaints.length} pending assignment • auto-refreshes every 30s</p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    const res = await api.getAdminComplaints();
+                    if (res.success) { setComplaints(res.data as any[]); toast.success('Refreshed!'); }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white/60 transition-colors"
+                >
+                  <Clock className="w-3.5 h-3.5" /> Refresh Now
+                </button>
+              </div>
+
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                {[
+                  { label: 'Total Assigned', value: assignedComplaints.length, color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
+                  { label: 'In Progress', value: assignedComplaints.filter((c: any) => c.status === 'IN_PROGRESS').length, color: 'text-primary-400', bg: 'bg-primary-500/10 border-primary-500/20' },
+                  { label: 'Resolved', value: assignedComplaints.filter((c: any) => c.status === 'RESOLVED').length, color: 'text-success-400', bg: 'bg-success-500/10 border-success-500/20' },
+                  { label: 'Awaiting Start', value: assignedComplaints.filter((c: any) => c.status === 'PENDING').length, color: 'text-warning-400', bg: 'bg-warning-500/10 border-warning-500/20' },
+                ].map(s => (
+                  <div key={s.label} className={`rounded-xl p-3 border ${s.bg}`}>
+                    <p className="text-[9px] uppercase tracking-widest text-white/30 font-bold mb-1">{s.label}</p>
+                    <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Status Tracker (Assigned Complaints) ── */}
+              {assignedComplaints.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-xs font-bold text-white/50 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <Activity className="w-3.5 h-3.5 text-indigo-400" /> Live Status Tracker
+                  </h3>
+                  <div className="space-y-3">
+                    {assignedComplaints.map((c: any, i: number) => {
+                      const prog = getStatusProgress(c.status);
+                      const subDept = subDepartments.find((s: any) => s._id === c.assignedSubDepartment);
+                      return (
+                        <motion.div
+                          key={c._id || c.complaintId || i}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.04 }}
+                          className={`glass-card p-4 border transition-all ${
+                            c.status === 'RESOLVED' ? 'border-success-500/20' :
+                            c.status === 'ESCALATED' ? 'border-danger-500/20' :
+                            c.status === 'IN_PROGRESS' ? 'border-primary-500/20' :
+                            'border-indigo-500/15'
+                          }`}
+                        >
+                          {/* Top row */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-mono text-primary-400 bg-primary-500/10 px-2 py-0.5 rounded">
+                                #{(c.complaintId || c._id || '').toString().slice(-6)}
+                              </span>
+                              <span className={`text-[9px] px-2 py-0.5 rounded font-bold ${
+                                c.priority === 'HIGH' ? 'bg-danger-500/10 text-danger-400' :
+                                c.priority === 'MEDIUM' ? 'bg-warning-500/10 text-warning-400' :
+                                'bg-white/5 text-white/40'
+                              }`}>{c.priority}</span>
+                              <span className="text-[10px] text-white/30 bg-white/5 px-2 py-0.5 rounded">{c.category}</span>
+                            </div>
+                            {/* Status badge */}
+                            <span className={`text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 ${
+                              c.status === 'RESOLVED' ? 'bg-success-500/15 text-success-300 border border-success-500/25' :
+                              c.status === 'ESCALATED' ? 'bg-danger-500/15 text-danger-300 border border-danger-500/25' :
+                              c.status === 'IN_PROGRESS' ? 'bg-primary-500/15 text-primary-300 border border-primary-500/25' :
+                              c.status === 'UNDER_REVIEW' ? 'bg-violet-500/15 text-violet-300 border border-violet-500/25' :
+                              'bg-warning-500/15 text-warning-300 border border-warning-500/25'
+                            }`}>
+                              <span>{prog.icon}</span> {prog.label}
+                            </span>
+                          </div>
+
+                          <p className="text-sm text-white/70 mb-3 truncate">{c.description}</p>
+
+                          {/* Progress Bar */}
+                          <div className="mb-3">
+                            <div className="flex justify-between text-[9px] text-white/30 mb-1">
+                              <span>Progress</span>
+                              <span>{prog.pct}%</span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-white/5 border border-white/5 overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${prog.pct}%` }}
+                                transition={{ duration: 0.8, ease: 'easeOut' }}
+                                className={`h-full rounded-full ${prog.color}`}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Sub-department + location + last remark */}
+                          <div className="flex flex-wrap items-center gap-3 text-[10px]">
+                            <div className="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2.5 py-1.5">
+                              <Users className="w-3 h-3 text-indigo-400" />
+                              <span className="text-indigo-300 font-semibold">{subDept?.name || 'Sub-Dept'}</span>
+                            </div>
+                            <span className="flex items-center gap-1 text-white/25">
+                              <MapPin className="w-3 h-3" />{c.location?.area || 'Unknown'}
+                            </span>
+                            {c.lastRemark && (
+                              <span className="flex items-center gap-1 text-white/30 bg-white/5 px-2 py-1 rounded-lg border border-white/5 max-w-xs truncate" title={c.lastRemark}>
+                                <MessageSquare className="w-3 h-3 flex-shrink-0" />
+                                {c.lastRemark}
+                              </span>
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Unassigned Complaints ── */}
+              {subDepartments.length === 0 ? (
+                <div className="glass-card p-8 text-center">
+                  <Tag className="w-10 h-10 text-white/10 mx-auto mb-3" />
+                  <p className="text-sm text-white/30">No sub-departments created yet.</p>
+                  <p className="text-xs text-white/20 mt-1">Go to Sub-Departments section to create one first.</p>
+                </div>
+              ) : unassignedComplaints.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-white/50 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <AlertCircle className="w-3.5 h-3.5 text-warning-400" /> Pending Assignment ({unassignedComplaints.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {unassignedComplaints.map((c: any, i: number) => (
+                      <motion.div
+                        key={c._id || c.complaintId || i}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        className="glass-card p-4 border border-white/[0.06] hover:border-warning-500/20 transition-all"
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="text-[10px] font-mono text-primary-400 bg-primary-500/10 px-2 py-0.5 rounded">
+                                #{(c.complaintId || c._id || '').toString().slice(-6)}
+                              </span>
+                              <span className={`text-[9px] px-2 py-0.5 rounded font-bold ${
+                                c.priority === 'HIGH' ? 'bg-danger-500/10 text-danger-400 border border-danger-500/20' :
+                                c.priority === 'MEDIUM' ? 'bg-warning-500/10 text-warning-400 border border-warning-500/20' :
+                                'bg-white/5 text-white/50 border border-white/10'
+                              }`}>{c.priority}</span>
+                              <span className="text-[10px] text-white/30 bg-white/5 px-2 py-0.5 rounded">{c.category}</span>
+                              <span className="text-[10px] text-warning-400 bg-warning-500/10 px-2 py-0.5 rounded">{c.status}</span>
+                            </div>
+                            <p className="text-sm text-white/70 truncate">{c.description}</p>
+                            <div className="flex items-center gap-3 mt-1 text-[10px] text-white/30">
+                              <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{c.location?.area || 'Unknown'}</span>
+                              <span>{c.userName || 'Anonymous'}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <select
+                              value={assignSelections[c._id || c.complaintId] || ''}
+                              onChange={(e) => {
+                                const id = c._id || c.complaintId;
+                                setAssignSelections(prev => ({ ...prev, [id]: e.target.value }));
+                              }}
+                              className="input-field text-xs py-2 w-[180px]"
+                              aria-label="Select sub-department"
+                            >
+                              <option value="" disabled>Select Sub-Dept</option>
+                              {subDepartments.map((s: any) => (
+                                <option key={s._id} value={s._id}>{s.name}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={async () => {
+                                const id = (c._id || c.complaintId).toString();
+                                const subDeptId = assignSelections[id];
+                                if (!subDeptId) { toast.error('Sub-department select karein'); return; }
+                                const res = await api.assignSubDepartment(id, subDeptId);
+                                if (!res.success) { toast.error(res.message || 'Failed to assign'); return; }
+                                toast.success('✅ Work assigned!');
+                                // Clear selection for this complaint
+                                setAssignSelections(prev => { const n = {...prev}; delete n[id]; return n; });
+                                const compRes = await api.getAdminComplaints();
+                                if (compRes.success) setComplaints(compRes.data as any[]);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg bg-gradient-to-r from-indigo-500/20 to-cyan-500/20 text-indigo-300 border border-indigo-500/30 hover:from-indigo-500/30 hover:to-cyan-500/30 transition-all"
+                            >
+                              <ArrowRight className="w-3.5 h-3.5" /> Assign
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );})()}
+
 
           {['work-status', 'performance', 'alerts', 'ai', 'location', 'communication', 'controls'].includes(activeSection) && (
             <AdminAdvancedSections

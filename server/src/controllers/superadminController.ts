@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import Department from '../models/Department';
 import User from '../models/User';
 import Complaint from '../models/Complaint';
@@ -7,51 +8,37 @@ import Notification from '../models/Notification';
 import { AuthRequest } from '../middleware/auth';
 import { emitToUser } from '../socket';
 
-const getDeptIdMap = (headDepts: Array<{ _id: any; name: string }>) => {
-  const byId = new Map<string, { _id: any; name: string }>();
-  const byName = new Map<string, { _id: any; name: string }>();
-  headDepts.forEach((d) => {
-    byId.set(d._id.toString(), d);
-    byName.set(d.name, d);
-  });
-  return { byId, byName };
-};
-
 // GET /api/superadmin/admins
 export const getAdminOverview = async (req: AuthRequest, res: Response) => {
   try {
-    const headDepts = await Department.find({ parentDepartmentId: null, isActive: true }).select('_id name');
-    const headDeptIds = headDepts.map((d) => d._id);
-    const headDeptNames = headDepts.map((d) => d.name);
-    const { byId, byName } = getDeptIdMap(headDepts as any);
+    // 1. All departments (head + sub)
+    const allDepts = await Department.find({ isActive: true }).select(
+      '_id name parentDepartmentId adminUserId contactEmail'
+    );
+    const headDepts = allDepts.filter((d: any) => !d.parentDepartmentId);
+    const subDepts  = allDepts.filter((d: any) =>  d.parentDepartmentId);
 
-    const admins = await User.find({
-      role: 'ADMIN',
-      isActive: true,
-      $or: [
-        { departmentId: { $in: headDeptIds } },
-        { department: { $in: headDeptNames } },
-      ],
-    }).select('-password');
+    // Maps for fast lookup
+    const deptById        = new Map(allDepts.map((d: any) => [d._id.toString(), d]));
+    const deptByNameLower = new Map(allDepts.map((d: any) => [d.name.toLowerCase().trim(), d]));
 
-    const subDepts = await Department.find({ parentDepartmentId: { $in: headDeptIds }, isActive: true }).select('_id parentDepartmentId');
-    const subMap = new Map<string, string[]>();
-    subDepts.forEach((d) => {
-      const parentId = d.parentDepartmentId?.toString();
-      if (!parentId) return;
-      const list = subMap.get(parentId) || [];
-      list.push(d._id.toString());
-      subMap.set(parentId, list);
+    // head → [head_id, ...child_ids]
+    const headToAllIds = new Map<string, string[]>();
+    headDepts.forEach((h: any) => {
+      const hid      = h._id.toString();
+      const children = subDepts
+        .filter((s: any) => s.parentDepartmentId.toString() === hid)
+        .map((s: any) => s._id.toString());
+      headToAllIds.set(hid, [hid, ...children]);
     });
 
-    const allDeptIds = new Set<string>();
-    headDeptIds.forEach((id) => allDeptIds.add(id.toString()));
-    subDepts.forEach((d) => allDeptIds.add(d._id.toString()));
+    // 2. All active admin users (no filter by dept — fetch all)
+    const admins = await User.find({ role: 'ADMIN', isActive: true }).select('-password');
 
-    const deptIdArray = Array.from(allDeptIds).map((id) => ({ _id: id }));
-
+    // 3. Complaint stats by departmentId (ObjectId)
+    const allDeptObjectIds = allDepts.map((d: any) => new mongoose.Types.ObjectId(d._id));
     const idStats = await Complaint.aggregate([
-      { $match: { departmentId: { $in: deptIdArray.map((d) => d._id) } } },
+      { $match: { departmentId: { $in: allDeptObjectIds } } },
       {
         $addFields: {
           resolutionMs: {
@@ -66,25 +53,23 @@ export const getAdminOverview = async (req: AuthRequest, res: Response) => {
       {
         $group: {
           _id: '$departmentId',
-          total: { $sum: 1 },
-          resolved: { $sum: { $cond: [{ $eq: ['$status', 'RESOLVED'] }, 1, 0] } },
-          pending: { $sum: { $cond: [{ $eq: ['$status', 'PENDING'] }, 1, 0] } },
-          inProgress: { $sum: { $cond: [{ $eq: ['$status', 'IN_PROGRESS'] }, 1, 0] } },
-          escalated: { $sum: { $cond: [{ $eq: ['$status', 'ESCALATED'] }, 1, 0] } },
-          avgResolutionMs: { $avg: '$resolutionMs' },
+          total:          { $sum: 1 },
+          resolved:       { $sum: { $cond: [{ $eq: ['$status', 'RESOLVED']    }, 1, 0] } },
+          pending:        { $sum: { $cond: [{ $eq: ['$status', 'PENDING']     }, 1, 0] } },
+          inProgress:     { $sum: { $cond: [{ $eq: ['$status', 'IN_PROGRESS'] }, 1, 0] } },
+          escalated:      { $sum: { $cond: [{ $eq: ['$status', 'ESCALATED']   }, 1, 0] } },
+          avgResolutionMs:{ $avg: '$resolutionMs' },
         },
       },
     ]);
+    const statsById = new Map(idStats.map((s: any) => [s._id?.toString(), s]));
 
+    // 4. Complaint stats by department NAME (case-insensitive, for complaints without ID)
     const nameStats = await Complaint.aggregate([
-      {
-        $match: {
-          department: { $in: headDeptNames },
-          $or: [{ departmentId: { $exists: false } }, { departmentId: null }],
-        },
-      },
+      { $match: { $or: [{ departmentId: { $exists: false } }, { departmentId: null }] } },
       {
         $addFields: {
+          deptNameLower: { $toLower: { $trim: { input: { $ifNull: ['$department', ''] } } } },
           resolutionMs: {
             $cond: [
               { $and: [{ $ne: ['$resolvedAt', null] }, { $ne: ['$resolvedAt', ''] }] },
@@ -96,87 +81,115 @@ export const getAdminOverview = async (req: AuthRequest, res: Response) => {
       },
       {
         $group: {
-          _id: '$department',
-          total: { $sum: 1 },
-          resolved: { $sum: { $cond: [{ $eq: ['$status', 'RESOLVED'] }, 1, 0] } },
-          pending: { $sum: { $cond: [{ $eq: ['$status', 'PENDING'] }, 1, 0] } },
-          inProgress: { $sum: { $cond: [{ $eq: ['$status', 'IN_PROGRESS'] }, 1, 0] } },
-          escalated: { $sum: { $cond: [{ $eq: ['$status', 'ESCALATED'] }, 1, 0] } },
-          avgResolutionMs: { $avg: '$resolutionMs' },
+          _id: '$deptNameLower',
+          total:          { $sum: 1 },
+          resolved:       { $sum: { $cond: [{ $eq: ['$status', 'RESOLVED']    }, 1, 0] } },
+          pending:        { $sum: { $cond: [{ $eq: ['$status', 'PENDING']     }, 1, 0] } },
+          inProgress:     { $sum: { $cond: [{ $eq: ['$status', 'IN_PROGRESS'] }, 1, 0] } },
+          escalated:      { $sum: { $cond: [{ $eq: ['$status', 'ESCALATED']   }, 1, 0] } },
+          avgResolutionMs:{ $avg: '$resolutionMs' },
         },
       },
     ]);
+    const statsByName = new Map(nameStats.map((s: any) => [s._id || '', s]));
 
-    const statsById = new Map(idStats.map((s: any) => [s._id?.toString(), s]));
-    const statsByName = new Map(nameStats.map((s: any) => [s._id, s]));
-
+    // 5. Login stats
     const loginStats = await AuditLog.aggregate([
-      { $match: { action: 'LOGIN', performedBy: { $in: admins.map((a) => a._id.toString()) } } },
+      {
+        $match: {
+          action: 'LOGIN',
+          performedBy: { $in: admins.map((a: any) => a._id.toString()) },
+        },
+      },
       { $group: { _id: '$performedBy', lastLoginAt: { $max: '$createdAt' } } },
     ]);
-    const loginMap = new Map(loginStats.map((s: any) => [s._id, s.lastLoginAt]));
+    const loginMap = new Map(loginStats.map((s: any) => [s._id?.toString(), s.lastLoginAt]));
 
-    const data = admins.map((admin) => {
-      const deptId = admin.departmentId ? admin.departmentId.toString() : null;
-      const headDept = deptId ? byId.get(deptId) : admin.department ? byName.get(admin.department) : null;
-      const headId = headDept?._id?.toString();
-      const relatedIds = headId ? [headId, ...(subMap.get(headId) || [])] : [];
+    // Helper: merge stats for a set of dept IDs + optional name fallback
+    const mergeStats = (deptIds: string[], deptName?: string) => {
+      const acc = { total: 0, resolved: 0, pending: 0, inProgress: 0, escalated: 0, rMs: 0, rCount: 0 };
 
-      const merged = relatedIds.reduce(
-        (acc, id) => {
-          const s = statsById.get(id);
-          if (!s) return acc;
-          acc.total += s.total || 0;
-          acc.resolved += s.resolved || 0;
-          acc.pending += s.pending || 0;
-          acc.inProgress += s.inProgress || 0;
-          acc.escalated += s.escalated || 0;
-          acc.avgResolutionMs += s.avgResolutionMs || 0;
-          acc.avgCount += s.avgResolutionMs ? 1 : 0;
-          return acc;
-        },
-        { total: 0, resolved: 0, pending: 0, inProgress: 0, escalated: 0, avgResolutionMs: 0, avgCount: 0 }
-      );
+      for (const id of deptIds) {
+        const s = statsById.get(id);
+        if (!s) continue;
+        acc.total      += s.total || 0;
+        acc.resolved   += s.resolved || 0;
+        acc.pending    += s.pending || 0;
+        acc.inProgress += s.inProgress || 0;
+        acc.escalated  += s.escalated || 0;
+        if (s.avgResolutionMs) { acc.rMs += s.avgResolutionMs; acc.rCount += 1; }
+      }
 
-      if (!headId && admin.department) {
-        const s = statsByName.get(admin.department);
-        if (s) {
-          merged.total = s.total || 0;
-          merged.resolved = s.resolved || 0;
-          merged.pending = s.pending || 0;
-          merged.inProgress = s.inProgress || 0;
-          merged.escalated = s.escalated || 0;
-          merged.avgResolutionMs = s.avgResolutionMs || 0;
-          merged.avgCount = s.avgResolutionMs ? 1 : 0;
+      // Also add name-based complaints (complaints filed before proper deptId linkage)
+      if (deptName) {
+        const key = deptName.toLowerCase().trim();
+        const ns  = statsByName.get(key);
+        if (ns) {
+          acc.total      += ns.total || 0;
+          acc.resolved   += ns.resolved || 0;
+          acc.pending    += ns.pending || 0;
+          acc.inProgress += ns.inProgress || 0;
+          acc.escalated  += ns.escalated || 0;
+          if (ns.avgResolutionMs) { acc.rMs += ns.avgResolutionMs; acc.rCount += 1; }
         }
       }
 
-      const avgResolutionMs = merged.avgCount ? merged.avgResolutionMs / merged.avgCount : 0;
-      const lastLoginAt = loginMap.get(admin._id.toString()) || null;
-      const daysSinceLogin = lastLoginAt ? Math.floor((Date.now() - new Date(lastLoginAt).getTime()) / (1000 * 60 * 60 * 24)) : null;
+      return {
+        total:          acc.total,
+        resolved:       acc.resolved,
+        pending:        acc.pending,
+        inProgress:     acc.inProgress,
+        escalated:      acc.escalated,
+        avgResolutionMs: acc.rCount ? acc.rMs / acc.rCount : 0,
+      };
+    };
+
+    // 6. Build per-admin result
+    const data = admins.map((admin: any) => {
+      const adminDeptId = admin.departmentId?.toString() || null;
+
+      // Resolve admin's department object
+      let adminDept: any = adminDeptId ? deptById.get(adminDeptId) : null;
+      if (!adminDept && admin.department) {
+        adminDept = deptByNameLower.get(admin.department.toLowerCase().trim()) || null;
+      }
+
+      // Resolve to head department
+      let headDeptId: string | null = null;
+      if (adminDept) {
+        headDeptId = adminDept.parentDepartmentId
+          ? adminDept.parentDepartmentId.toString()    // admin is in a sub-dept
+          : adminDept._id.toString();                  // admin is the head
+      }
+
+      // All dept IDs to aggregate (head + its children)
+      const deptIds: string[] = headDeptId
+        ? (headToAllIds.get(headDeptId) || [headDeptId])
+        : adminDeptId ? [adminDeptId] : [];
+
+      const stats = mergeStats(deptIds, admin.department);
+
+      const lastLoginAt    = loginMap.get(admin._id.toString()) || null;
+      const daysSinceLogin = lastLoginAt
+        ? Math.floor((Date.now() - new Date(lastLoginAt).getTime()) / (1000 * 60 * 60 * 24))
+        : null;
 
       return {
-        id: admin._id,
-        name: admin.name,
-        email: admin.email,
-        department: admin.department || headDept?.name || '—',
-        departmentId: admin.departmentId || headDept?._id || null,
+        id:           admin._id,
+        name:         admin.name,
+        email:        admin.email,
+        department:   admin.department || adminDept?.name || '—',
+        departmentId: adminDeptId || adminDept?._id?.toString() || null,
         lastLoginAt,
         daysSinceLogin,
         status: lastLoginAt && daysSinceLogin !== null && daysSinceLogin <= 7 ? 'ACTIVE' : 'INACTIVE',
-        stats: {
-          total: merged.total,
-          resolved: merged.resolved,
-          pending: merged.pending,
-          inProgress: merged.inProgress,
-          escalated: merged.escalated,
-          avgResolutionMs,
-        },
+        stats,
       };
     });
 
     res.json({ success: true, data });
   } catch (err: any) {
+    console.error('[superadmin/admins] error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -188,27 +201,28 @@ export const warnAdmin = async (req: AuthRequest, res: Response) => {
     const admin = await User.findById(req.params.id);
     if (!admin) return res.status(404).json({ success: false, error: 'Admin not found' });
 
-    const note = typeof message === 'string' && message.trim()
-      ? message.trim()
-      : 'Please review pending complaints and SLA performance.';
+    const note =
+      typeof message === 'string' && message.trim()
+        ? message.trim()
+        : 'Please review pending complaints and SLA performance.';
 
     const notification = await Notification.create({
-      userId: admin._id.toString(),
-      title: 'Superadmin Warning',
+      userId:  admin._id.toString(),
+      title:   'Superadmin Warning',
       message: note,
-      type: 'GENERAL',
+      type:    'GENERAL',
     });
 
     emitToUser(admin._id.toString(), 'notification_created', notification);
 
     await AuditLog.create({
-      action: 'ADMIN_WARNING',
-      performedBy: req.user!.userId,
-      performedByName: req.user!.name,
-      role: req.user!.role,
-      targetType: 'user',
-      targetId: admin._id.toString(),
-      details: note,
+      action:            'ADMIN_WARNING',
+      performedBy:       req.user!.userId,
+      performedByName:   req.user!.name,
+      role:              req.user!.role,
+      targetType:        'user',
+      targetId:          admin._id.toString(),
+      details:           note,
     });
 
     res.json({ success: true, message: 'Warning sent' });

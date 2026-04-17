@@ -351,7 +351,7 @@ export default function ComplaintTable({
         <table className="w-full">
           <thead>
             <tr className="border-b border-white/5">
-              {['ID', 'Category', 'User', 'Location', 'Priority', 'Status', 'Officer', 'Date/Time', 'SLA', 'Actions'].map(
+              {['ID', 'Category', 'Dept', 'User', 'Location', 'Priority', 'Status', 'Officer', 'Date/Time', 'SLA', 'Actions'].map(
                 (h) => (
                   <th
                     key={h}
@@ -400,6 +400,11 @@ export default function ComplaintTable({
                         {c.category}
                       </span>
                     </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs text-primary-300/80 truncate max-w-[120px] block" title={c.department}>
+                      {c.department || '—'}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs text-white/60 flex items-center gap-1">

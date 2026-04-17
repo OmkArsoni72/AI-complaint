@@ -21,6 +21,7 @@ interface Complaint {
   priority: string;
   location: any;
   createdAt: string;
+  slaDeadline?: string;
 }
 
 export default function CitizenDashboard() {
@@ -71,10 +72,14 @@ export default function CitizenDashboard() {
   }, [fetchComplaints]);
 
 
-  const pending   = complaints.filter(c => c.status?.toLowerCase() === 'pending').length;
+  const active    = complaints.filter(c => !['resolved', 'closed'].includes(c.status?.toLowerCase())).length;
+  const high      = complaints.filter(c => c.priority?.toUpperCase() === 'HIGH').length;
+  const overdue   = complaints.filter(c => !['resolved', 'closed'].includes(c.status?.toLowerCase()) && c.slaDeadline && new Date(c.slaDeadline).getTime() < Date.now()).length;
   const resolved  = complaints.filter(c => c.status?.toLowerCase() === 'resolved').length;
-  const escalated = complaints.filter(c => c.status?.toLowerCase() === 'escalated').length;
-  const total     = complaints.length;
+
+  // Smart Action checks
+  const overdueComplaint = complaints.find(c => !['resolved', 'closed'].includes(c.status?.toLowerCase()) && c.slaDeadline && new Date(c.slaDeadline).getTime() < Date.now());
+  const needsFeedback = complaints.find(c => c.status?.toLowerCase() === 'resolved'); // Simple check for demo
 
   return (
     <div className="min-h-screen bg-transparent text-slate-900 dark:text-slate-200 py-8 px-4 md:px-8">
@@ -103,16 +108,16 @@ export default function CitizenDashboard() {
         </div>
 
         {/* ── Stats Row ────────────────────────────────────────── */}
-        {!isLoading && total > 0 && (
+        {!isLoading && complaints.length > 0 && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
             className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-10"
           >
             {[
-              { label: t('total'),     count: total,     icon: Inbox,         color: 'text-blue-600 dark:text-blue-400',    bg: 'bg-blue-500/5',    border: 'border-blue-500/20' },
-              { label: t('pending'),   count: pending,   icon: Clock,         color: 'text-amber-600 dark:text-amber-400',   bg: 'bg-amber-500/5',   border: 'border-amber-500/20' },
-              { label: t('resolved'),  count: resolved,  icon: CheckCircle2,  color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/5', border: 'border-emerald-500/20' },
-              { label: t('escalated'), count: escalated, icon: AlertCircle,   color: 'text-rose-600 dark:text-rose-400',    bg: 'bg-rose-500/5',    border: 'border-rose-500/20' },
+              { label: 'Active',      count: active,     icon: Activity,      color: 'text-blue-600 dark:text-blue-400',    bg: 'bg-blue-500/5',    border: 'border-blue-500/20' },
+              { label: 'High Priority', count: high,     icon: Zap,           color: 'text-amber-600 dark:text-amber-400',  bg: 'bg-amber-500/5',   border: 'border-amber-500/20' },
+              { label: 'Overdue',     count: overdue,    icon: AlertCircle,   color: 'text-rose-600 dark:text-rose-400',    bg: 'bg-rose-500/5',    border: 'border-rose-500/20' },
+              { label: 'Resolved',    count: resolved,   icon: CheckCircle2,  color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/5', border: 'border-emerald-500/20' },
             ].map(s => {
               const Icon = s.icon;
               return (
@@ -178,6 +183,28 @@ export default function CitizenDashboard() {
           </motion.button>
         </div>
 
+        {/* ── Smart Actions (Dynamic) ──────────────────────────── */}
+        {(!isLoading && (overdueComplaint || needsFeedback)) && (
+          <div className="mb-10 p-6 rounded-[2rem] bg-rose-500/10 border border-rose-500/20 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-black text-rose-600 dark:text-rose-400 mb-1 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 animate-pulse" /> Action Required
+              </h3>
+              {overdueComplaint ? (
+                <p className="text-sm text-slate-700 dark:text-slate-300">You have an overdue grievance. Please escalate it to the Nodal Officer.</p>
+              ) : (
+                <p className="text-sm text-slate-700 dark:text-slate-300">A grievance was recently resolved. Please provide feedback or reopen.</p>
+              )}
+            </div>
+            <button 
+              onClick={() => router.push(`/user/complaints/${overdueComplaint?._id || needsFeedback?._id}`)}
+              className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl whitespace-nowrap transition-all shadow-lg shadow-rose-500/20"
+            >
+              {overdueComplaint ? 'Escalate Now' : 'Give Feedback'}
+            </button>
+          </div>
+        )}
+
         {/* ── Recent Activity ───────────────────────────────────── */}
         <div className="glass-card rounded-[3rem] p-8 md:p-10 shadow-2xl relative overflow-hidden border-2 dark:border-white/5 border-slate-100">
            <div className="absolute -right-24 -top-24 w-80 h-80 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-[100px]" />
@@ -219,19 +246,36 @@ export default function CitizenDashboard() {
                     onClick={() => router.push(`/user/complaints/${c._id}`)}
                     className="flex items-center justify-between p-6 rounded-3xl bg-slate-50/50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 hover:border-blue-500/30 hover:bg-white hover:dark:bg-white/[0.05] hover:shadow-xl hover:shadow-blue-500/5 transition-all cursor-pointer group"
                   >
-                    <div className="flex items-center gap-5 min-w-0">
+                    <div className="flex items-center gap-5 min-w-0 flex-1">
                       <span 
                         suppressHydrationWarning
                         className={`text-[10px] font-black px-3 py-1.5 rounded-xl border uppercase tracking-widest ${statusStyles[statusKey] || 'text-slate-400 bg-slate-100 dark:bg-white/5'}`}
                       >
                         {c.status}
                       </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-800 dark:text-slate-300 truncate group-hover:text-blue-600 dark:group-hover:text-white transition-colors">
-                          {c.description}
-                        </p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-3">
+                          <p className="text-sm font-bold text-slate-800 dark:text-slate-300 truncate group-hover:text-blue-600 dark:group-hover:text-white transition-colors">
+                            {c.description.length > 50 ? `${c.description.substring(0, 50)}...` : c.description}
+                          </p>
+                          {c.priority === 'HIGH' && (
+                            <span className="text-[9px] font-black uppercase text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">High Priority</span>
+                          )}
+                        </div>
                         <p className="text-[10px] text-slate-400 mt-1 font-medium">{new Date(c.createdAt).toLocaleDateString()} • {c.category}</p>
                       </div>
+                    </div>
+                    {/* SLA Badge */}
+                    <div className="hidden sm:flex flex-col items-end mr-6 text-right">
+                       {c.slaDeadline && !['resolved', 'closed'].includes(c.status?.toLowerCase()) ? (
+                         new Date(c.slaDeadline).getTime() < Date.now() ? (
+                           <div className="text-xs font-bold text-rose-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Overdue</div>
+                         ) : (
+                           <div className="text-xs font-bold text-amber-500 flex items-center gap-1"><Clock className="w-3 h-3" /> {Math.max(1, Math.floor((new Date(c.slaDeadline).getTime() - Date.now()) / (1000 * 60 * 60)))}h left</div>
+                         )
+                       ) : c.status?.toLowerCase() === 'resolved' ? (
+                         <div className="text-xs font-bold text-emerald-500 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Fixed</div>
+                       ) : null}
                     </div>
                     <div className="w-10 h-10 rounded-full flex items-center justify-center bg-slate-100 dark:bg-white/5 group-hover:bg-blue-500/10 transition-all flex-shrink-0">
                       <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors" />
