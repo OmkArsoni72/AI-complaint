@@ -17,7 +17,11 @@ async function fetchApi<T>(
       ...options,
     });
 
-    const result = await res.json();
+    // Some backend failures can return HTML (for example 404 fallback pages).
+    // Parse defensively so the UI doesn't crash with "Unexpected token '<'".
+    const contentType = res.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+    const result = isJson ? await res.json() : null;
 
     if (res.status === 401) {
       return { success: false, data: null as T, message: 'Session expired or invalid.' };
@@ -27,9 +31,21 @@ async function fetchApi<T>(
       return {
         success: false,
         data: null as T,
-        message: result.error || result.message || `HTTP error ${res.status}`,
+        message:
+          (result as any)?.error ||
+          (result as any)?.message ||
+          `HTTP error ${res.status}${isJson ? '' : ' (non-JSON response from server)'}`,
       };
     }
+
+    if (!isJson) {
+      return {
+        success: false,
+        data: null as T,
+        message: 'Invalid server response format',
+      };
+    }
+
     return result;
   } catch (err) {
     console.error('API Error:', err);
@@ -38,9 +54,73 @@ async function fetchApi<T>(
 }
 
 export const api = {
+  // ── Admin (Tenant Scoped) ─────────────────────────────
+  getAdminComplaints: async (params?: string) => {
+    return await fetchApi<any[]>(`/admin/complaints${params ? `?${params}` : ''}`);
+  },
+
+  acceptAdminComplaint: async (id: string) => {
+    return await fetchApi<any>(`/admin/complaints/${id}/accept`, { method: 'PATCH' });
+  },
+
+  rejectAdminComplaint: async (id: string, reason: string) => {
+    return await fetchApi<any>(`/admin/complaints/${id}/reject`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  assignAdminComplaint: async (id: string, officerId: string) => {
+    return await fetchApi<any>(`/admin/complaints/${id}/assign`, {
+      method: 'PATCH',
+      body: JSON.stringify({ officerId }),
+    });
+  },
+
+  updateAdminComplaintStatus: async (id: string, status: string, remarks?: string) => {
+    return await fetchApi<any>(`/admin/complaints/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, remarks }),
+    });
+  },
+
+  addAdminComplaintRemark: async (id: string, text: string) => {
+    return await fetchApi<any>(`/admin/complaints/${id}/remark`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+  },
+
+  getAdminOfficers: async () => {
+    return await fetchApi<any[]>('/admin/officers');
+  },
+
+  createAdminOfficer: async (data: any) => {
+    return await fetchApi<any>('/admin/officers', { method: 'POST', body: JSON.stringify(data) });
+  },
+
+  getSubDepartments: async () => {
+    return await fetchApi<any[]>('/admin/sub-departments');
+  },
+
+  createSubDepartment: async (data: any) => {
+    return await fetchApi<any>('/admin/sub-departments', { method: 'POST', body: JSON.stringify(data) });
+  },
+
+  updateSubDepartment: async (id: string, data: any) => {
+    return await fetchApi<any>(`/admin/sub-departments/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+
+  deleteSubDepartment: async (id: string) => {
+    return await fetchApi<any>(`/admin/sub-departments/${id}`, { method: 'DELETE' });
+  },
   // ── Complaints ──────────────────────────────────────────
   getComplaints: async (params?: string) => {
     return await fetchApi<any[]>(`/complaints${params ? `?${params}` : ''}`);
+  },
+
+  getMyComplaints: async () => {
+    return await fetchApi<any[]>(`/complaints/my`);
   },
 
   getComplaint: async (id: string) => {
@@ -197,5 +277,22 @@ export const api = {
   // ── Simulate Crisis ────────────────────────────────────
   simulateCrisis: async () => {
     return await fetchApi<any>('/simulate', { method: 'POST' });
+  },
+
+  // ── Superadmin Admin Management ───────────────────────
+  getSuperadminAdmins: async () => {
+    return await fetchApi<any[]>('/superadmin/admins');
+  },
+
+  warnSuperadminAdmin: async (id: string, message: string) => {
+    return await fetchApi<any>(`/superadmin/admins/${id}/warn`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+  },
+
+  // ── Generic fetch method ────────────────────────────────
+  fetchApi: async <T,>(endpoint: string, options?: RequestInit) => {
+    return await fetchApi<T>(endpoint, options);
   },
 };

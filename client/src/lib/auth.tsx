@@ -9,8 +9,10 @@ interface UserData {
   id: string;
   name: string;
   email: string;
-  role: 'PUBLIC' | 'ADMIN' | 'SUPER_ADMIN';
+  role: 'PUBLIC' | 'ADMIN' | 'SUPER_ADMIN' | 'OFFICER';
   department: string | null;
+  departmentId?: string | null;
+  isSubDepartment?: boolean;
   region: string | null;
   phone: string;
   avatar?: string;
@@ -30,7 +32,7 @@ interface AuthContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: TranslationKey) => string;
-  login: (email: string, password: string, requiredRole?: UserData['role']) => Promise<boolean>;
+  login: (email: string, password: string, requiredRole?: UserData['role']) => Promise<{ ok: boolean; user?: UserData; errorRole?: UserData['role'] }>;
   demoLogin: (role: UserData['role']) => Promise<boolean>;
   register: (data: any) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
@@ -92,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('grievance_user', JSON.stringify(normalizedUser));
   };
 
-  const login = async (email: string, password: string, requiredRole?: UserData['role']): Promise<boolean> => {
+  const login = async (email: string, password: string, requiredRole?: UserData['role']): Promise<{ ok: boolean; user?: UserData; errorRole?: UserData['role'] }> => {
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
@@ -103,19 +105,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.success) {
         const userRole = data.data.user.role as UserData['role'];
         if (requiredRole && userRole !== requiredRole) {
-          const superAdminAccessingAdmin = requiredRole === 'ADMIN' && userRole === 'SUPER_ADMIN';
-          if (!superAdminAccessingAdmin) {
-            localStorage.setItem('grievance_user_auth_error_role', userRole);
-            return false;
-          }
+          localStorage.setItem('grievance_user_auth_error_role', userRole);
+          return { ok: false, errorRole: userRole };
         }
         saveSession(data.data.token, data.data.user);
-        return true;
+        return { ok: true, user: { ...data.data.user, id: data.data.user.id || data.data.user._id } };
       }
     } catch (err) {
       console.error('Login error:', err);
     }
-    return false;
+    return { ok: false };
   };
 
   const demoLogin = async (role: UserData['role']): Promise<boolean> => {

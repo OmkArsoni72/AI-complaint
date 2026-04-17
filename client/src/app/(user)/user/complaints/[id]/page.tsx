@@ -7,7 +7,7 @@ import {
   ArrowLeft, MapPin, Clock, Tag, MessageSquare,
   ThumbsUp, ThumbsDown, AlertCircle, CheckCircle2,
   Calendar, Building2, Zap, Image as ImageIcon, Mic,
-  Play, Pause, X, User as UserIcon, Timer
+  Play, Pause, X, User as UserIcon, Timer, PlusCircle
 } from 'lucide-react';
 import { onEvent } from '@/lib/socket';
 

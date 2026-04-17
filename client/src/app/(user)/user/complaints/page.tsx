@@ -9,6 +9,7 @@ import {
   Tag, LogIn, Inbox
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
 import { onEvent } from '@/lib/socket';
 
 interface Complaint {
@@ -51,14 +52,11 @@ export default function MyComplaintsPage() {
     }
 
     try {
-      const res = await fetch('/api/complaints/my', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setComplaints(data.data as Complaint[]);
+      const res = await api.getMyComplaints();
+      if (res.success) {
+        setComplaints(res.data as Complaint[]);
       } else {
-        setError(data.error || 'Failed to fetch complaints');
+        setError(res.message || 'Failed to fetch complaints');
       }
     } catch {
       setError('Cannot connect to backend. Please ensure the server is running.');

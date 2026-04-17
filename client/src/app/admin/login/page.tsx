@@ -7,6 +7,7 @@ export default function AdminLoginPage() {
       title="Admin Access Portal"
       subtitle="Department Operations & Resolution Desk"
       redirectTo="/admin"
+      portalGuard="HEAD_ADMIN"
     />
   );
 }

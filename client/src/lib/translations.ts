@@ -17,6 +17,7 @@ export const translations = {
     // Dashboard
     liveIntelligence: "Live Intelligence Command",
     connected: "Connected",
+    welcomeBack: "Welcome back",
     total: "Total",
     pending: "Pending",
     resolved: "Resolved",
@@ -68,6 +69,7 @@ export const translations = {
     // Dashboard
     liveIntelligence: "लाइव इंटेलिजेंस कमांड",
     connected: "जुड़े हुए",
+    welcomeBack: "वापसी पर स्वागत है",
     total: "कुल",
     pending: "लंबित",
     resolved: "समाधान",

@@ -3,6 +3,8 @@
  * Department Mapping, and Auto-Tag Generation
  */
 
+import Department from '../models/Department';
+
 // ── Category Detection ──────────────────────────────────────────────────
 const CATEGORY_RULES: { keywords: string[]; category: string }[] = [
   { 
@@ -90,6 +92,41 @@ const DEPARTMENT_MAP: Record<string, string> = {
   'Infrastructure': 'Public Works Department',
   'General': 'General Administration',
 };
+
+/**
+ * Find department by category from database
+ * Searches for a department whose categories array includes the given category
+ * Falls back to default department mapping if not found
+ */
+export async function getDepartmentByCategory(category: string) {
+  try {
+    // Search for department with this category in their categories array
+    const dept = await Department.findOne({
+      categories: category,
+      isActive: true
+    }).select('_id name categories adminUserId');
+    
+    if (dept) {
+      return {
+        name: dept.name,
+        _id: dept._id,
+        adminUserId: dept.adminUserId,
+        source: 'database'
+      };
+    }
+  } catch (err: any) {
+    console.error('Error finding department by category:', err.message);
+  }
+  
+  // Fallback to hardcoded mapping
+  const deptName = DEPARTMENT_MAP[category] || 'General Administration';
+  return {
+    name: deptName,
+    _id: null,
+    adminUserId: null,
+    source: 'fallback'
+  };
+}
 
 export function getDepartment(category: string): string {
   return DEPARTMENT_MAP[category] || 'General Administration';

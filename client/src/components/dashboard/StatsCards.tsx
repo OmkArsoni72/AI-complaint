@@ -110,21 +110,6 @@ export default function StatsCards({ data }: { data: StatsData | null }) {
             </h3>
             <p className="text-sm text-white/45">{stat.label}</p>
 
-            {/* Sparkline bars */}
-            <div className="mt-3 flex items-end gap-px h-8">
-              {[65, 45, 78, 52, 88, 35, 72, 58, 42, 90, 62, 48].map((h, i) => (
-                <div
-                  key={i}
-                  className="flex-1 rounded-sm transition-all duration-500"
-                  style={{
-                    height: `${(h + index * 7) % 80 + 20}%`,
-                    background: stat.barColor,
-                    opacity: 0.5 + (i / 24),
-                  }}
-                />
-              ))}
-            </div>
-
             {/* Subtle corner glow on hover */}
             <div
               className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"

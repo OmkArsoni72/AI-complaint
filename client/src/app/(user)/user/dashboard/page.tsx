@@ -9,6 +9,7 @@ import {
   Inbox, LogIn, Zap, Activity, Navigation, Bell
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
 import { onEvent } from '@/lib/socket';
 import toast from 'react-hot-toast';
 
@@ -31,11 +32,8 @@ export default function CitizenDashboard() {
   const fetchComplaints = useCallback(async () => {
     if (!token) { setIsLoading(false); return; }
     try {
-      const res = await fetch('/api/complaints/my', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) setComplaints(data.data as Complaint[]);
+      const res = await api.getMyComplaints();
+      if (res.success) setComplaints(res.data as Complaint[]);
     } catch {
       // fail silently on dashboard
     } finally {
@@ -130,19 +128,19 @@ export default function CitizenDashboard() {
         )}
 
         {/* ── Action Cards ─────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
           {/* File Complaint */}
           <motion.button
             whileHover={{ y: -6, scale: 1.02 }}
             onClick={() => router.push('/user/complaints/new')}
             suppressHydrationWarning
-            className="group col-span-1 p-8 rounded-[2.5rem] bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 text-left relative overflow-hidden shadow-2xl shadow-blue-500/20 border border-white/10"
+            className="group col-span-1 p-6 rounded-[2rem] bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 text-left relative overflow-hidden shadow-xl shadow-blue-500/20 border border-white/10"
           >
             <div className="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-white/20 transition-all duration-500" />
-            <PlusCircle className="w-12 h-12 text-white mb-6 group-hover:rotate-90 transition-transform duration-700 ease-out" />
-            <h2 className="text-2xl font-black text-white mb-2">{t('reportIssue')}</h2>
-            <p className="text-blue-100/70 text-sm leading-relaxed mb-6 max-w-[80%]">{t('aiBacked')}</p>
-            <div className="inline-flex items-center gap-2 text-white text-sm font-bold bg-white/15 px-6 py-3 rounded-2xl group-hover:bg-white/25 transition-all backdrop-blur-md shadow-lg">
+            <PlusCircle className="w-10 h-10 text-white mb-4 group-hover:rotate-90 transition-transform duration-700 ease-out" />
+            <h2 className="text-xl font-black text-white mb-2">{t('reportIssue')}</h2>
+            <p className="text-blue-100/70 text-[13px] leading-relaxed mb-5 max-w-[85%]">{t('aiBacked')}</p>
+            <div className="inline-flex items-center gap-2 text-white text-xs font-bold bg-white/15 px-5 py-2.5 rounded-xl group-hover:bg-white/25 transition-all backdrop-blur-md shadow-lg">
               {t('file')} <ChevronRight className="w-4 h-4" />
             </div>
           </motion.button>
@@ -152,13 +150,13 @@ export default function CitizenDashboard() {
             whileHover={{ y: -6, scale: 1.02 }}
             onClick={() => router.push('/user/nearby')}
             suppressHydrationWarning
-            className="group p-8 rounded-[2.5rem] glass-card text-left relative overflow-hidden shadow-xl"
+            className="group p-6 rounded-[2rem] glass-card text-left relative overflow-hidden shadow-lg"
           >
             <div className="absolute -left-10 -bottom-10 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl" />
-            <Navigation className="w-12 h-12 text-emerald-500 dark:text-emerald-400 mb-6 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-            <h2 className="text-2xl font-black dark:text-white text-slate-900 mb-2">{t('nearbyIssues')}</h2>
-            <p className="text-slate-500 text-sm mb-6">Explore geo-tagged problems in real-time.</p>
-            <div className="inline-flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold bg-emerald-500/10 px-6 py-3 rounded-2xl group-hover:bg-emerald-500/20 transition-all">
+            <Navigation className="w-10 h-10 text-emerald-500 dark:text-emerald-400 mb-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+            <h2 className="text-xl font-black dark:text-white text-slate-900 mb-2">{t('nearbyIssues')}</h2>
+            <p className="text-slate-500 text-[13px] mb-5">Explore geo-tagged problems in real-time.</p>
+            <div className="inline-flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs font-bold bg-emerald-500/10 px-5 py-2.5 rounded-xl group-hover:bg-emerald-500/20 transition-all">
               View Map <ChevronRight className="w-4 h-4" />
             </div>
           </motion.button>
@@ -168,13 +166,13 @@ export default function CitizenDashboard() {
             whileHover={{ y: -6, scale: 1.02 }}
             onClick={() => router.push('/user/complaints')}
             suppressHydrationWarning
-            className="group p-8 rounded-[2.5rem] glass-card text-left relative overflow-hidden shadow-xl"
+            className="group p-6 rounded-[2rem] glass-card text-left relative overflow-hidden shadow-lg"
           >
             <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl" />
-            <ListTodo className="w-12 h-12 text-blue-600 dark:text-blue-400 mb-6 group-hover:scale-110 transition-transform" />
-            <h2 className="text-2xl font-black dark:text-white text-slate-900 mb-2">My Tracking</h2>
-            <p className="text-slate-500 text-sm mb-6">Monitor your grievances status history.</p>
-            <div className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-bold bg-blue-500/10 px-6 py-3 rounded-2xl group-hover:bg-blue-500/20 transition-all">
+            <ListTodo className="w-10 h-10 text-blue-600 dark:text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
+            <h2 className="text-xl font-black dark:text-white text-slate-900 mb-2">My Tracking</h2>
+            <p className="text-slate-500 text-[13px] mb-5">Monitor your grievances status history.</p>
+            <div className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-bold bg-blue-500/10 px-5 py-2.5 rounded-xl group-hover:bg-blue-500/20 transition-all">
               {t('trackAll')} <ChevronRight className="w-4 h-4" />
             </div>
           </motion.button>

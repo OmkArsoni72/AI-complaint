@@ -33,6 +33,7 @@ export const STATUS_COLORS = {
   IN_PROGRESS: { bg: 'bg-primary-500/15', text: 'text-primary-400', label: 'In Progress' },
   RESOLVED: { bg: 'bg-success-500/15', text: 'text-success-400', label: 'Resolved' },
   ESCALATED: { bg: 'bg-danger-500/15', text: 'text-danger-400', label: 'Escalated' },
+  REJECTED: { bg: 'bg-slate-500/20', text: 'text-slate-300', label: 'Rejected' },
 } as const;
 
 export const CATEGORY_ICONS: Record<string, string> = {

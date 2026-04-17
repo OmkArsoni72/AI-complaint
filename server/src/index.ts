@@ -5,6 +5,7 @@ import path from 'path';
 import { createServer } from 'http';
 import connectDB from './config/db';
 import { initSocket } from './socket';
+import { startEscalationMonitor } from './services/escalationMonitor';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.get('/api/health', (_req, res) => {
 
 // Connect & Start
 connectDB().then(() => {
+  startEscalationMonitor();
   httpServer.listen(PORT, () => {
     console.log(`🚀 CITIZEN-ONLY Server running on http://localhost:${PORT}`);
     console.log(`📋 Routes: auth, complaints, users, notifications`);

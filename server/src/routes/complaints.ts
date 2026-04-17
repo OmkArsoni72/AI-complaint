@@ -6,8 +6,10 @@ import jwt from 'jsonwebtoken';
 import express from 'express';
 import Complaint from '../models/Complaint';
 import Notification from '../models/Notification';
-import { detectCategory, detectPriority, getDepartment, calculateSLA, generateTags } from '../services/aiEngine';
-import { emitEvent } from '../socket';
+import Department from '../models/Department';
+import User from '../models/User';
+import { detectCategory, detectPriority, getDepartment, calculateSLA, generateTags, generateComplaintId } from '../services/aiEngine';
+import { emitEvent, emitToDepartment, emitToUser } from '../socket';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'grievance-system-secret-key-2024';
@@ -87,30 +89,70 @@ router.post(
   ]),
   async (req: Request, res: Response) => {
     try {
-      const { description, location, lat, lng } = req.body;
-      let { category } = req.body;
+      const { description } = req.body;
+      const rawLocation = req.body.location;
+      const rawLat = req.body.lat;
+      const rawLng = req.body.lng;
+      let category: string = typeof req.body.category === 'string' ? req.body.category : '';
 
-      if (!description || !location) {
+      if (!description || !rawLocation) {
         return res.status(400).json({
           success: false,
           error: 'description and location are required',
         });
       }
 
+      let loc: any = null;
+      if (typeof rawLocation === 'string') {
+        try {
+          loc = JSON.parse(rawLocation);
+        } catch {
+          loc = null;
+        }
+      } else if (typeof rawLocation === 'object') {
+        loc = rawLocation;
+      }
+
+      const latNum =
+        typeof loc?.lat === 'number'
+          ? loc.lat
+          : parseFloat((loc?.lat ?? rawLat) as string);
+      const lngNum =
+        typeof loc?.lng === 'number'
+          ? loc.lng
+          : parseFloat((loc?.lng ?? rawLng) as string);
+
+      const area =
+        typeof loc?.area === 'string'
+          ? loc.area
+          : typeof rawLocation === 'string'
+            ? rawLocation
+            : 'Unknown Area';
+      const district =
+        typeof loc?.district === 'string'
+          ? loc.district
+          : typeof req.body.district === 'string'
+            ? req.body.district
+            : 'Delhi';
+
       // ── AI Engine ────────────────────────────────────────────────────
       if (!category || category === 'General') {
-        category = detectCategory(description);
+        category = detectCategory(description).category;
       }
-      const priority    = detectPriority(description);
-      const department  = getDepartment(category);
+      const priority = detectPriority(description);
+      const escapedCategory = category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const deptDoc = await Department.findOne({
+        isActive: true,
+        categories: { $regex: new RegExp(`^${escapedCategory}$`, 'i') },
+      }).select('name');
+      const department = deptDoc?.name || getDepartment(category);
+      const departmentId = deptDoc?._id || null;
       const slaDeadline = calculateSLA(category, priority);
-      const tags        = generateTags(description, category);
+      const tags = generateTags(description, category);
 
       // ── Uploaded Files ───────────────────────────────────────────────
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      const imageUrls = (files?.images || []).map(
-        f => `/api/complaints/files/${f.filename}`
-      );
+      const imageUrls = (files?.images || []).map((f) => `/api/complaints/files/${f.filename}`);
       const voiceNoteUrl = files?.voice?.[0]
         ? `/api/complaints/files/${files.voice[0].filename}`
         : '';
@@ -119,28 +161,69 @@ router.post(
       const userInfo = getUserFromToken(req);
 
       const complaint = await Complaint.create({
+        complaintId: generateComplaintId(),
         description,
         category,
         priority,
         department,
+        departmentId,
         slaDeadline,
         tags,
         imageUrls,
         voiceNoteUrl,
-        userId:   userInfo?.userId   || '',
+        userId: userInfo?.userId || '',
         userName: userInfo?.userName || 'Anonymous',
         timeline: [{ step: 'Submitted', time: new Date() }],
         location: {
           type: 'Point',
-          coordinates: [lng ? parseFloat(lng) : 77.209, lat ? parseFloat(lat) : 28.6139],
-          area: location,
-          district: 'Delhi',
+          coordinates: [Number.isFinite(lngNum) ? lngNum : 77.209, Number.isFinite(latNum) ? latNum : 28.6139],
+          area,
+          district,
         },
-        status: 'pending',
+        status: 'PENDING',
       });
 
+      // Build admin recipients for this department so bell notifications are not static.
+      const deptAdmins = await User.find({
+        role: 'ADMIN',
+        isActive: true,
+        $or: [
+          ...(departmentId ? [{ departmentId }] : []),
+          { department: { $regex: new RegExp(`^${department}$`, 'i') } },
+        ],
+      }).select('_id');
+
+      const adminIds = new Set<string>(deptAdmins.map((a) => a._id.toString()));
+      if (deptDoc?.adminUserId) {
+        adminIds.add(deptDoc.adminUserId.toString());
+      }
+
+      const adminNotificationPayload = {
+        title: 'New Complaint Assigned',
+        message: `#${complaint.complaintId} (${complaint.category}) reported in ${area || 'Unknown area'}`,
+        type: 'GENERAL' as const,
+        relatedId: complaint.complaintId,
+      };
+
+      if (adminIds.size > 0) {
+        await Notification.insertMany(
+          Array.from(adminIds).map((adminId) => ({
+            userId: adminId,
+            ...adminNotificationPayload,
+          }))
+        );
+
+        for (const adminId of adminIds) {
+          emitToUser(adminId, 'complaint_notification', adminNotificationPayload);
+          emitToUser(adminId, 'complaint_created', complaint);
+        }
+      }
+
       // Emit real-time updates
-      emitEvent('complaint_created', complaint);
+      emitToDepartment(complaint.department, 'complaint_created', complaint);
+      if (complaint.userId) {
+        emitToUser(complaint.userId, 'complaint_created', complaint);
+      }
       emitEvent('stats_updated', null);
 
       res.status(201).json({ success: true, data: complaint });
@@ -165,10 +248,34 @@ router.get('/my', async (req: Request, res: Response) => {
   }
 });
 
-// ── GET /api/complaints — Get all complaints (public/admin view) ─────────
-router.get('/', async (_req: Request, res: Response) => {
+// ── GET /api/complaints — Get complaints (public/admin view) ─────────────
+router.get('/', async (req: Request, res: Response) => {
   try {
-    const complaints = await Complaint.find().sort({ createdAt: -1 });
+    const query: any = {};
+
+    if (typeof req.query.department === 'string' && req.query.department.trim()) {
+      query.department = req.query.department.trim();
+    }
+
+    if (typeof req.query.userId === 'string' && req.query.userId.trim()) {
+      query.userId = req.query.userId.trim();
+    }
+
+    if (typeof req.query.status === 'string' && req.query.status.trim()) {
+      query.status = req.query.status.trim();
+    }
+
+    const limit =
+      typeof req.query.limit === 'string' && req.query.limit.trim()
+        ? parseInt(req.query.limit, 10)
+        : undefined;
+
+    let dbQuery = Complaint.find(query).sort({ createdAt: -1 });
+    if (Number.isFinite(limit) && (limit as number) > 0) {
+      dbQuery = dbQuery.limit(limit as number);
+    }
+
+    const complaints = await dbQuery;
     res.json({ success: true, data: complaints });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -193,14 +300,17 @@ router.patch('/:id/feedback', async (req: Request, res: Response) => {
     const complaint = await Complaint.findById(req.params.id);
     if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found' });
 
-    complaint.status = satisfied === false ? 'Escalated' : 'Resolved';
+    complaint.status = satisfied === false ? 'ESCALATED' : 'RESOLVED';
     complaint.timeline.push({ step: complaint.status, time: new Date() });
 
     await complaint.save();
 
-    emitEvent('complaint_updated', complaint);
-    if (complaint.status === 'Escalated') {
-      emitEvent('complaint_escalated', complaint);
+    emitToDepartment(complaint.department, 'complaint_updated', complaint);
+    if (complaint.userId) {
+      emitToUser(complaint.userId, 'complaint_updated', complaint);
+    }
+    if (complaint.status === 'ESCALATED') {
+      emitToDepartment(complaint.department, 'complaint_escalated', complaint);
     }
     emitEvent('stats_updated', null);
 
@@ -217,9 +327,10 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     const complaint = await Complaint.findById(req.params.id);
     if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found' });
 
-    if (status) {
-      complaint.status = status;
-      complaint.timeline.push({ step: status, time: new Date() });
+    if (typeof status === 'string' && status.trim()) {
+      const normalizedStatus = status.trim().toUpperCase();
+      complaint.status = normalizedStatus;
+      complaint.timeline.push({ step: normalizedStatus, time: new Date() });
     }
 
     if (assignedOfficer) {
@@ -229,7 +340,10 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 
     await complaint.save();
 
-    emitEvent('complaint_updated', complaint);
+    emitToDepartment(complaint.department, 'complaint_updated', complaint);
+    if (complaint.userId) {
+      emitToUser(complaint.userId, 'complaint_updated', complaint);
+    }
     emitEvent('stats_updated', null);
 
     // ── Notifications ───────────────────────────────────────────────
@@ -246,7 +360,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
         await Notification.create({
           userId: complaint.userId,
           title: 'Status Updated',
-          message: `Your grievance status is now: ${status}`,
+          message: `Your grievance status is now: ${complaint.status}`,
           type: 'STATUS_UPDATE',
           relatedId: complaint._id.toString(),
         });

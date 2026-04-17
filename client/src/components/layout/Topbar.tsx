@@ -14,7 +14,7 @@ interface TopbarProps {
 }
 
 export default function Topbar({ onMenuToggle }: TopbarProps) {
-  const { user, logout, language, setLanguage } = useAuth();
+  const { user, token, logout, language, setLanguage } = useAuth();
   const router = useRouter();
   const [notificationList, setNotificationList] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -40,20 +40,32 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
     const unSubCreated = onEvent('complaint_created', () => {
       fetchNotifications();
       toast('New grievance reported in your area', { icon: '📢', style: { border: '1px solid #3b82f6', background: '#0f172a', color: '#fff' } });
-    });
+    }, token);
 
     const unSubUpdated = onEvent('complaint_updated', (complaint) => {
       fetchNotifications();
       if (complaint.userId === user?.id) {
         toast.success(`Your complaint status updated: ${complaint.status}`, { icon: '✅' });
       }
-    });
+    }, token);
+
+    // Admin workflows emit this event to specific users/officers/super-admin.
+    const unSubDirect = onEvent('complaint_notification', (payload) => {
+      fetchNotifications();
+      if (payload?.title || payload?.message) {
+        toast(payload?.title || 'New update', {
+          icon: '🔔',
+          style: { border: '1px solid #22c55e', background: '#0f172a', color: '#fff' },
+        });
+      }
+    }, token);
 
     return () => {
       unSubCreated();
       unSubUpdated();
+      unSubDirect();
     };
-  }, [user]);
+  }, [user, token]);
 
   const handleMarkRead = async (id: string) => {
     try {
@@ -102,6 +114,8 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
         <button
           onClick={onMenuToggle}
           suppressHydrationWarning
+          aria-label="Toggle menu"
+          title="Toggle menu"
           className="lg:hidden p-2 rounded-lg dark:text-white/50 text-slate-500 hover:text-primary-500 hover:bg-primary-500/5 transition-colors"
         >
           <Menu className="w-5 h-5" />

@@ -4,6 +4,7 @@ import User from '../models/User';
 import Officer from '../models/Officer';
 import AuditLog from '../models/AuditLog';
 import { AuthRequest } from '../middleware/auth';
+import Department from '../models/Department';
 
 // GET /api/users/me (Authenticated user)
 export const getMe = async (req: AuthRequest, res: Response) => {
@@ -46,7 +47,7 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
 // GET /api/users (SUPER_ADMIN only)
 export const getUsers = async (req: AuthRequest, res: Response) => {
   try {
-    let query = {};
+    let query: any = {};
     if (req.user!.role === 'ADMIN') {
       // Find the officer profile of the requester to get their department
       const officer = await Officer.findOne({ email: req.user!.email });
@@ -55,6 +56,25 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
       } else {
         return res.status(403).json({ success: false, error: 'Officer profile not found for Admin' });
       }
+    }
+
+    if (req.user!.role === 'SUPER_ADMIN') {
+      const headDepts = await Department.find({ parentDepartmentId: null, isActive: true }).select('_id name');
+      const headDeptIds = headDepts.map((d) => d._id);
+      const headDeptNames = headDepts.map((d) => d.name);
+
+      query = {
+        $or: [
+          { role: 'SUPER_ADMIN' },
+          {
+            role: 'ADMIN',
+            $or: [
+              { departmentId: { $in: headDeptIds } },
+              { department: { $in: headDeptNames } },
+            ],
+          },
+        ],
+      };
     }
     
     const users = await User.find(query).select('-password').sort({ createdAt: -1 });

@@ -8,6 +8,8 @@ export interface AuthRequest extends Request {
     userId: string;
     role: string;
     department: string | null;
+    departmentId?: string | null;
+    isSubDepartment?: boolean;
     region: string | null;
     name: string;
     email: string;

@@ -4,9 +4,10 @@
   "description": "AI Grievance Intelligence System - Express.js Backend",
   "main": "dist/index.js",
   "scripts": {
+    "prestart": "powershell -Command '$p=(Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if($p){ Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }'",
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "yarn build && node dist/index.js",
     "seed": "ts-node src/seed.ts"
   },
   "dependencies": {

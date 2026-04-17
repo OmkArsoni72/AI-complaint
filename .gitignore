@@ -38,3 +38,6 @@ next-env.d.ts
 # Misc
 *.log
 .vercel
+
+# Uploads
+server/uploads/

@@ -27,11 +27,17 @@ export const getDepartmentStats = async (_req: Request, res: Response) => {
         $group: {
           _id: '$department',
           total: { $sum: 1 },
+          active: {
+            $sum: { $cond: [{ $ne: ['$status', 'RESOLVED'] }, 1, 0] }
+          },
           pending: {
             $sum: { $cond: [{ $in: ['$status', ['PENDING', 'IN_PROGRESS']] }, 1, 0] }
           },
           resolved: {
             $sum: { $cond: [{ $eq: ['$status', 'RESOLVED'] }, 1, 0] }
+          },
+          highPriority: {
+            $sum: { $cond: [{ $eq: ['$priority', 'HIGH'] }, 1, 0] }
           }
         }
       },
@@ -40,9 +46,12 @@ export const getDepartmentStats = async (_req: Request, res: Response) => {
 
     const data = stats.map((s) => ({
       department: s._id || 'Unassigned',
+      count: s.total,
       total: s.total,
+      active: s.active,
       pending: s.pending,
       resolved: s.resolved,
+      highPriority: s.highPriority,
       performance: s.total > 0 ? Math.round((s.resolved / s.total) * 100) : 0
     }));
 

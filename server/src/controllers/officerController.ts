@@ -1,10 +1,23 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import Officer from '../models/Officer';
+import { AuthRequest } from '../middleware/auth';
 
 // GET /api/officers
-export const getOfficers = async (_req: Request, res: Response) => {
+export const getOfficers = async (req: AuthRequest, res: Response) => {
   try {
-    const officers = await Officer.find({ isActive: true }).sort({ department: 1 });
+    const filter: any = { isActive: true };
+
+    if (req.user?.role === 'ADMIN' || req.user?.role === 'OFFICER') {
+      if (req.user.departmentId) {
+        filter.departmentId = req.user.departmentId;
+      } else if (req.user.department) {
+        filter.department = req.user.department;
+      } else {
+        return res.status(403).json({ success: false, error: 'Department scope missing' });
+      }
+    }
+
+    const officers = await Officer.find(filter).sort({ department: 1 });
     res.json({ success: true, data: officers });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Failed to fetch officers' });
@@ -12,9 +25,16 @@ export const getOfficers = async (_req: Request, res: Response) => {
 };
 
 // GET /api/officers/:id
-export const getOfficerById = async (req: Request, res: Response) => {
+export const getOfficerById = async (req: AuthRequest, res: Response) => {
   try {
-    const officer = await Officer.findById(req.params.id);
+    const query: any = { _id: req.params.id };
+    if (req.user?.role === 'ADMIN' || req.user?.role === 'OFFICER') {
+      if (req.user.departmentId) query.departmentId = req.user.departmentId;
+      else if (req.user.department) query.department = req.user.department;
+      else return res.status(403).json({ success: false, error: 'Department scope missing' });
+    }
+
+    const officer = await Officer.findOne(query);
     if (!officer) {
       return res.status(404).json({ success: false, error: 'Officer not found' });
     }

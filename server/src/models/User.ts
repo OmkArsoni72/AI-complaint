@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type UserRole = 'PUBLIC' | 'ADMIN' | 'SUPER_ADMIN';
+export type UserRole = 'PUBLIC' | 'ADMIN' | 'SUPER_ADMIN' | 'OFFICER';
 
 export interface IUser extends Document {
   name: string;
@@ -8,6 +8,7 @@ export interface IUser extends Document {
   password: string;
   role: UserRole;
   department: string | null;
+  departmentId: mongoose.Types.ObjectId | null;
   region: string | null;
   phone: string;
   employeeId: string;
@@ -33,8 +34,9 @@ const UserSchema = new Schema<IUser>(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    role: { type: String, enum: ['PUBLIC', 'ADMIN', 'SUPER_ADMIN'], default: 'PUBLIC' },
+    role: { type: String, enum: ['PUBLIC', 'ADMIN', 'SUPER_ADMIN', 'OFFICER'], default: 'PUBLIC' },
     department: { type: String, default: null },
+    departmentId: { type: Schema.Types.ObjectId, ref: 'Department', default: null },
     region: { type: String, default: null },
     phone: { type: String, default: '' },
     employeeId: { type: String, default: '' },

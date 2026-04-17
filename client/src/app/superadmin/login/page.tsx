@@ -6,7 +6,7 @@ export default function SuperAdminLoginPage() {
       role="SUPER_ADMIN"
       title="Superadmin Command Console"
       subtitle="Citywide Oversight & Strategic Control"
-      redirectTo="/superadmin"
+      redirectTo="/superadmin/controlroom"
     />
   );
 }

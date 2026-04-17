@@ -62,26 +62,7 @@ export default function UserSidebar({ collapsed, onToggle }: SidebarProps) {
         </AnimatePresence>
       </div>
 
-      {/* User Info */}
-      <div className={`px-3 py-3 border-b dark:border-white/[0.06] border-slate-200/50 ${collapsed ? 'flex justify-center' : ''}`}>
-        {user ? (
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-md">
-              <User className="w-4 h-4 text-white" />
-            </div>
-            {!collapsed && (
-              <div className="min-w-0">
-                <p className="text-xs font-bold dark:text-white text-slate-800 truncate">{user.name}</p>
-                <p className="text-[10px] dark:text-white/30 text-slate-500">Citizen</p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-3 justify-center py-2">
-             <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-white/5 animate-pulse" />
-          </div>
-        )}
-      </div>
+      {/* User Info removed per design */}
 
       {/* Nav Items */}
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto custom-scrollbar">

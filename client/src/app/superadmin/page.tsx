@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { Shield, Users, FileText, Settings, Map, BarChart3, Building2, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { Shield, Users, FileText, Settings, Map, BarChart3, Building2, PlusCircle, Trash2, Edit, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -51,7 +51,6 @@ export default function SuperAdminPage() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
   const [viewingDept, setViewingDept] = useState<string | null>(null);
-  const [showAdminCreds, setShowAdminCreds] = useState<any>(null);
 
   const exportToCSV = (deptName: string) => {
     const deptComplaints = complaints.filter((c) => c.department === deptName);
@@ -78,31 +77,71 @@ export default function SuperAdminPage() {
     a.click();
   };
 
-  const validateUser = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!newUser.name?.trim()) newErrors.name = 'Name is required';
-    else if (!/^[a-zA-Z\s.]+$/.test(newUser.name)) newErrors.name = 'Name should only contain letters';
-
-    if (!newUser.email?.trim()) newErrors.email = 'Email is required';
-    else if (!/^\S+@\S+\.\S+$/.test(newUser.email)) newErrors.email = 'Invalid email format';
-
-    if (!editingUserId && (!newUser.password || newUser.password.length < 6)) {
-      newErrors.password = 'Password must be at least 6 characters';
+  const validateField = (field: string, value: string) => {
+    const trimmed = value?.trim?.() || '';
+    switch (field) {
+      case 'name':
+        if (!trimmed) return 'Name is required';
+        if (!/^[a-zA-Z\s.]+$/.test(trimmed)) return 'Name should only contain letters';
+        return '';
+      case 'email':
+        if (!trimmed) return 'Email is required';
+        if (!/^\S+@\S+\.\S+$/.test(trimmed)) return 'Invalid email format';
+        return '';
+      case 'password':
+        if (editingUserId) return '';
+        if (!trimmed || trimmed.length < 6) return 'Password must be at least 6 characters';
+        return '';
+      case 'phone':
+        if (!trimmed) return 'Phone is required';
+        if (!/^[6-9]\d{9}$/.test(trimmed)) return 'Invalid Indian phone number (10 digits)';
+        return '';
+      case 'pincode':
+        if (!trimmed) return 'Pincode is required';
+        if (!/^\d{6}$/.test(trimmed)) return 'Pincode must be 6 digits';
+        return '';
+      case 'rank':
+        if (!trimmed) return 'Designation is required';
+        return '';
+      case 'employeeId':
+        if (!trimmed) return 'Govt ID is required';
+        return '';
+      case 'department':
+        if (!trimmed) return 'Department is required';
+        return '';
+      default:
+        return '';
     }
+  };
 
-    if (!newUser.phone?.trim()) newErrors.phone = 'Phone is required';
-    else if (!/^[6-9]\d{9}$/.test(newUser.phone)) newErrors.phone = 'Invalid Indian phone number (10 digits)';
+  const validateUser = () => {
+    const newErrors: Record<string, string> = {
+      name: validateField('name', newUser.name || ''),
+      email: validateField('email', newUser.email || ''),
+      password: validateField('password', newUser.password || ''),
+      phone: validateField('phone', newUser.phone || ''),
+      pincode: validateField('pincode', newUser.pincode || ''),
+      rank: validateField('rank', newUser.rank || ''),
+      employeeId: validateField('employeeId', newUser.employeeId || ''),
+      department: validateField('department', newUser.department || ''),
+    };
 
-    if (!newUser.pincode?.trim()) newErrors.pincode = 'Pincode is required';
-    else if (!/^\d{6}$/.test(newUser.pincode)) newErrors.pincode = 'Pincode must be 6 digits';
-
-    if (!newUser.rank?.trim()) newErrors.rank = 'Designation is required';
-    if (!newUser.employeeId?.trim()) newErrors.employeeId = 'Govt ID is required';
-    if (!newUser.department) newErrors.department = 'Department is required';
+    Object.keys(newErrors).forEach((key) => {
+      if (!newErrors[key]) delete newErrors[key];
+    });
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleUserFieldChange = (field: string, value: string) => {
+    setNewUser((prev: any) => ({ ...prev, [field]: value }));
+    const error = validateField(field, value);
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (error) next[field] = error; else delete next[field];
+      return next;
+    });
   };
 
   const handleSaveUser = async (e: React.FormEvent) => {
@@ -218,39 +257,7 @@ export default function SuperAdminPage() {
         : await api.createDepartment({ ...deptData, categories: [], hierarchy: [] });
 
       if (res.success) {
-        if (!editingDeptId && res.data?._id) {
-          const deptHeadEmail = `head.${newDept.name.toLowerCase().replace(/\s+/g, '.')}@gov.in`;
-          const deptHeadPassword = Math.random().toString(36).substring(2, 14) + Math.random().toString(36).substring(2, 6);
-          const deptHeadUser = {
-            name: `${newDept.name} Head`,
-            email: deptHeadEmail,
-            password: deptHeadPassword,
-            role: 'ADMIN',
-            department: newDept.name,
-            rank: 'Department Head',
-            level: 5,
-            phone: '',
-            employeeId: `DH-${Date.now()}`,
-            officeAddress: newDept.location,
-            district: newDept.location,
-            state: 'Delhi',
-            pincode: '110001'
-          };
-
-          const userRes = await api.createUser(deptHeadUser);
-          if (userRes.success) {
-            setShowAdminCreds({
-              email: deptHeadEmail,
-              password: deptHeadPassword,
-              deptName: newDept.name
-            });
-            toast.success('Department created! Credentials below.');
-          } else {
-            toast.error('Department created but admin account failed: ' + (userRes.error || 'Unknown error'));
-          }
-        } else {
-          toast.success(editingDeptId ? 'Department Updated!' : 'Department Onboarded!');
-        }
+        toast.success(editingDeptId ? 'Department Updated!' : 'Department Onboarded!');
 
         setShowAddDept(false);
         setEditingDeptId(null);
@@ -579,33 +586,43 @@ export default function SuperAdminPage() {
       {showAddUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-md overflow-y-auto">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="glass-card w-full max-w-2xl p-5 sm:p-6 my-auto shadow-2xl border-white/10">
-            <h2 className="text-lg sm:text-xl font-bold text-white mb-6 flex items-center gap-2">
-              <PlusCircle className="w-5 h-5 text-primary-400" />
-              {editingUserId ? 'Update Official' : 'Add Official'}
-            </h2>
+            className="glass-card w-full max-w-2xl p-5 sm:p-6 my-auto shadow-2xl border-slate-200/70 bg-white/90 text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-white">
+            <div className="flex items-start justify-between gap-3 mb-6">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <PlusCircle className="w-5 h-5 text-primary-500" />
+                {editingUserId ? 'Update Official' : 'Add Official'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => { setShowAddUser(false); setEditingUserId(null); setErrors({}); }}
+                className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all dark:border-white/10 dark:text-white/60 dark:hover:text-white dark:hover:bg-white/5"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <form onSubmit={handleSaveUser} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Full Name</label>
-                  <input type="text" value={newUser.name || ''} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} className="input-field text-sm" placeholder="e.g. Rahul Singh" required />
-                  {errors.name && <p className="text-[10px] text-danger-400 mt-1">{errors.name}</p>}
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Full Name</label>
+                  <input type="text" value={newUser.name || ''} onChange={(e) => handleUserFieldChange('name', e.target.value)} className="input-field text-sm" placeholder="Enter full name" required />
+                  {errors.name && <p className="text-[10px] text-danger-500 mt-1">{errors.name}</p>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Email</label>
-                  <input type="email" value={newUser.email || ''} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} className="input-field text-sm" placeholder="login@govt.in" required />
-                  {errors.email && <p className="text-[10px] text-danger-400 mt-1">{errors.email}</p>}
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Email</label>
+                  <input type="email" value={newUser.email || ''} onChange={(e) => handleUserFieldChange('email', e.target.value)} className="input-field text-sm" placeholder="name@department.gov" required />
+                  {errors.email && <p className="text-[10px] text-danger-500 mt-1">{errors.email}</p>}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Password</label>
-                  <input type="password" value={newUser.password || ''} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} className="input-field text-sm" placeholder="••••••••" required={!editingUserId} />
-                  {errors.password && <p className="text-[10px] text-danger-400 mt-1">{errors.password}</p>}
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Password</label>
+                  <input type="password" value={newUser.password || ''} onChange={(e) => handleUserFieldChange('password', e.target.value)} className="input-field text-sm" placeholder={editingUserId ? 'Leave blank to keep existing' : 'Set a secure password'} required={!editingUserId} />
+                  {errors.password && <p className="text-[10px] text-danger-500 mt-1">{errors.password}</p>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Role</label>
-                  <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="input-field text-sm">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Role</label>
+                  <select value={newUser.role} onChange={(e) => handleUserFieldChange('role', e.target.value)} className="input-field text-sm">
                     <option value="ADMIN">ADMIN</option>
                     <option value="SUPER_ADMIN">SUPER_ADMIN</option>
                   </select>
@@ -613,51 +630,51 @@ export default function SuperAdminPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Department</label>
-                  <select value={newUser.department} onChange={(e) => setNewUser({ ...newUser, department: e.target.value })} className="input-field text-sm" required>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Department</label>
+                  <select value={newUser.department} onChange={(e) => handleUserFieldChange('department', e.target.value)} className="input-field text-sm" required>
                     <option value="">Select department</option>
                     {departments.map((d) => (
                       <option key={d._id} value={d.name}>{d.name}</option>
                     ))}
                   </select>
-                  {errors.department && <p className="text-[10px] text-danger-400 mt-1">{errors.department}</p>}
+                  {errors.department && <p className="text-[10px] text-danger-500 mt-1">{errors.department}</p>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Designation</label>
-                  <input type="text" value={newUser.rank || ''} onChange={(e) => setNewUser({ ...newUser, rank: e.target.value })} className="input-field text-sm" placeholder="e.g. Sub-Inspector" required />
-                  {errors.rank && <p className="text-[10px] text-danger-400 mt-1">{errors.rank}</p>}
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Designation</label>
+                  <input type="text" value={newUser.rank || ''} onChange={(e) => handleUserFieldChange('rank', e.target.value)} className="input-field text-sm" placeholder="Designation" required />
+                  {errors.rank && <p className="text-[10px] text-danger-500 mt-1">{errors.rank}</p>}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Phone</label>
-                  <input type="text" value={newUser.phone || ''} onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })} className="input-field text-sm" placeholder="98XXXXXXXX" required />
-                  {errors.phone && <p className="text-[10px] text-danger-400 mt-1">{errors.phone}</p>}
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Phone</label>
+                  <input type="tel" inputMode="numeric" maxLength={10} value={newUser.phone || ''} onChange={(e) => handleUserFieldChange('phone', e.target.value.replace(/[^0-9]/g, ''))} className="input-field text-sm" placeholder="10-digit mobile number" required />
+                  {errors.phone && <p className="text-[10px] text-danger-500 mt-1">{errors.phone}</p>}
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Govt Employee ID</label>
-                  <input type="text" value={newUser.employeeId || ''} onChange={(e) => setNewUser({ ...newUser, employeeId: e.target.value })} className="input-field text-sm" placeholder="EMP-XXXX" required />
-                  {errors.employeeId && <p className="text-[10px] text-danger-400 mt-1">{errors.employeeId}</p>}
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Govt Employee ID</label>
+                  <input type="text" value={newUser.employeeId || ''} onChange={(e) => handleUserFieldChange('employeeId', e.target.value)} className="input-field text-sm" placeholder="Employee ID" required />
+                  {errors.employeeId && <p className="text-[10px] text-danger-500 mt-1">{errors.employeeId}</p>}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">District</label>
-                  <input type="text" value={newUser.district || ''} onChange={(e) => setNewUser({ ...newUser, district: e.target.value })} className="input-field text-sm" placeholder="Central" />
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">District</label>
+                  <input type="text" value={newUser.district || ''} onChange={(e) => handleUserFieldChange('district', e.target.value)} className="input-field text-sm" placeholder="District" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">State</label>
-                  <input type="text" value={newUser.state || ''} onChange={(e) => setNewUser({ ...newUser, state: e.target.value })} className="input-field text-sm" placeholder="Delhi" />
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">State</label>
+                  <input type="text" value={newUser.state || ''} onChange={(e) => handleUserFieldChange('state', e.target.value)} className="input-field text-sm" placeholder="State" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Pincode</label>
-                  <input type="text" value={newUser.pincode || ''} onChange={(e) => setNewUser({ ...newUser, pincode: e.target.value })} className="input-field text-sm" placeholder="110001" required />
-                  {errors.pincode && <p className="text-[10px] text-danger-400 mt-1">{errors.pincode}</p>}
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Pincode</label>
+                  <input type="text" inputMode="numeric" maxLength={6} value={newUser.pincode || ''} onChange={(e) => handleUserFieldChange('pincode', e.target.value.replace(/[^0-9]/g, ''))} className="input-field text-sm" placeholder="6-digit pincode" required />
+                  {errors.pincode && <p className="text-[10px] text-danger-500 mt-1">{errors.pincode}</p>}
                 </div>
               </div>
-              <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-white/5">
+              <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-200/70 dark:border-white/5">
                 <button type="button" onClick={() => { setShowAddUser(false); setEditingUserId(null); setErrors({}); }}
-                  className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-white/60 hover:bg-white/5 transition-all text-sm">Cancel</button>
+                  className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all text-sm dark:border-white/10 dark:text-white/60 dark:hover:bg-white/5">Cancel</button>
                 <button type="submit" className="w-full sm:flex-1 btn-primary text-sm shadow-xl shadow-primary-500/20">Save Official</button>
               </div>
             </form>
@@ -678,21 +695,6 @@ export default function SuperAdminPage() {
         </div>
       )}
 
-      {showAdminCreds && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-md overflow-y-auto">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="glass-card w-full max-w-md p-5 sm:p-6 my-auto shadow-2xl border-white/10">
-            <h2 className="text-lg font-bold text-white mb-4">Department Admin Credentials</h2>
-            <p className="text-sm text-white/50 mb-4">Share these with the department head.</p>
-            <div className="space-y-2 text-sm text-white">
-              <div className="bg-white/5 rounded-lg p-3">Department: <strong>{showAdminCreds.deptName}</strong></div>
-              <div className="bg-white/5 rounded-lg p-3">Email: <strong>{showAdminCreds.email}</strong></div>
-              <div className="bg-white/5 rounded-lg p-3">Password: <strong>{showAdminCreds.password}</strong></div>
-            </div>
-            <button onClick={() => setShowAdminCreds(null)} className="btn-primary w-full mt-5">Done</button>
-          </motion.div>
-        </div>
-      )}
     </div>
   );
 }

@@ -219,6 +219,8 @@ export default function NewComplaintPage() {
   };
 
   // Submit
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -238,7 +240,7 @@ export default function NewComplaintPage() {
         formData.append('voice', new File([voiceBlob], 'voice-note.webm', { type: 'audio/webm' }));
       }
 
-      const res = await fetch('/api/complaints', {
+      const res = await fetch(`${API_BASE}/complaints`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,

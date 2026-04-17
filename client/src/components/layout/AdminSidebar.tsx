@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BarChart3,
+  LayoutDashboard,
   Shield,
   ChevronLeft,
   ChevronRight,
@@ -14,6 +15,14 @@ import {
   LogOut,
   User,
   Building2,
+  Activity,
+  Gauge,
+  Bell,
+  Brain,
+  MapPin,
+  MessageSquare,
+  ShieldCheck,
+  Tag,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
@@ -29,18 +38,31 @@ function getLoginPath(pathname: string) {
 
 export default function AdminSidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { user, logout } = useAuth();
 
+  const adminSection = searchParams.get('section') || 'overview';
+
   const navItems = user?.role === 'SUPER_ADMIN'
     ? [
-        { label: 'Control Room', icon: Shield, href: '/superadmin' },
-        { label: 'Admin Panel', icon: Building2, href: '/admin' },
-        { label: 'Analytics', icon: BarChart3, href: '/analytics' },
-        { label: 'Officer Desk', icon: Users, href: '/officer' },
+        { label: 'Dashboard', icon: LayoutDashboard, href: '/superadmin/dashboard' },
+        { label: 'Control Room', icon: Shield, href: '/superadmin/controlroom' },
+        { label: 'Admin Panel', icon: Building2, href: '/superadmin/adminpanel' },
+        { label: 'Analytics', icon: BarChart3, href: '/superadmin/analytics' },
+        { label: 'Officer Desk', icon: Users, href: '/superadmin/officer-desk' },
       ]
     : [
-        { label: 'Admin Panel', icon: Shield, href: '/admin' },
+      { label: 'Dashboard', icon: LayoutDashboard, href: '/admin?section=dashboard', sectionKey: 'dashboard' },
+        { label: 'Complaint Control', icon: Users, href: '/admin?section=complaints', sectionKey: 'complaints' },
+        { label: 'Work Status', icon: Activity, href: '/admin?section=work-status', sectionKey: 'work-status' },
+        { label: 'Performance', icon: Gauge, href: '/admin?section=performance', sectionKey: 'performance' },
+        { label: 'Smart Alerts', icon: Bell, href: '/admin?section=alerts', sectionKey: 'alerts' },
+        { label: 'AI Assistance', icon: Brain, href: '/admin?section=ai', sectionKey: 'ai' },
+        { label: 'Location Control', icon: MapPin, href: '/admin?section=location', sectionKey: 'location' },
+        { label: 'Communication', icon: MessageSquare, href: '/admin?section=communication', sectionKey: 'communication' },
+        { label: 'Control Limits', icon: ShieldCheck, href: '/admin?section=controls', sectionKey: 'controls' },
+        { label: 'Sub-Departments', icon: Tag, href: '/admin?section=subdepartments', sectionKey: 'subdepartments' },
         { label: 'Analytics', icon: BarChart3, href: '/analytics' },
         { label: 'Officer Desk', icon: Users, href: '/officer' },
       ];
@@ -89,34 +111,22 @@ export default function AdminSidebar({ collapsed, onToggle }: SidebarProps) {
         </div>
       )}
 
-      {user && (
-        <div className={`px-3 py-3 border-b border-white/[0.06] ${collapsed ? 'flex justify-center' : ''}`}>
-          {collapsed ? (
-            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${roleColors[user.role]} flex items-center justify-center shadow-lg`}>
-              <User className="w-4 h-4 text-white" />
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-9 h-9 rounded-lg bg-gradient-to-br ${roleColors[user.role]} flex items-center justify-center flex-shrink-0`}
-                style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
-              >
-                <User className="w-4 h-4 text-white" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-white truncate">{user.name}</p>
-                <p className={`text-[10px] font-medium ${roleBadgeBg[user.role]} inline-block px-1.5 py-0.5 rounded mt-0.5`}>
-                  {user.role.replace('_', ' ')}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {user && <div className="border-b border-white/[0.06]" />}
 
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isSectionItem = !!(item as any).sectionKey;
+          const isActive = isSectionItem
+            ? pathname === '/admin' && adminSection === (item as any).sectionKey
+            : item.href === '/superadmin/controlroom'
+            ? pathname === item.href || pathname === '/superadmin'
+            : item.href === '/superadmin/adminpanel'
+              ? pathname === item.href || pathname === '/admin'
+              : item.href === '/superadmin/analytics'
+                ? pathname === item.href || pathname === '/analytics'
+                : item.href === '/superadmin/officer-desk'
+                  ? pathname === item.href || pathname === '/officer'
+                  : pathname === item.href;
           const Icon = item.icon;
 
           return (
@@ -149,7 +159,7 @@ export default function AdminSidebar({ collapsed, onToggle }: SidebarProps) {
           <button
             onClick={() => {
               logout();
-              router.push(getLoginPath(pathname));
+              router.replace(getLoginPath(pathname));
             }}
             className={`nav-link w-full text-danger-400/60 hover:text-danger-400 hover:bg-danger-500/5 ${collapsed ? 'justify-center px-0' : ''}`}
           >
