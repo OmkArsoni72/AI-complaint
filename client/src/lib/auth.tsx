@@ -32,8 +32,9 @@ interface AuthContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: TranslationKey) => string;
-  login: (email: string, password: string, requiredRole?: UserData['role']) => Promise<{ ok: boolean; user?: UserData; errorRole?: UserData['role'] }>;
+  login: (email: string, password: string, requiredRole?: UserData['role']) => Promise<{ ok: boolean; user?: UserData; errorRole?: UserData['role']; error?: string }>;
   register: (data: any) => Promise<{ ok: boolean; error?: string }>;
+  googleLogin: (credential: string) => Promise<{ ok: boolean; user?: UserData; error?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   isPublic: boolean;
@@ -93,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('grievance_user', JSON.stringify(normalizedUser));
   };
 
-  const login = async (email: string, password: string, requiredRole?: UserData['role']): Promise<{ ok: boolean; user?: UserData; errorRole?: UserData['role'] }> => {
+  const login = async (email: string, password: string, requiredRole?: UserData['role']): Promise<{ ok: boolean; user?: UserData; errorRole?: UserData['role']; error?: string }> => {
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
@@ -105,7 +106,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userRole = data.data.user.role as UserData['role'];
         const isSub = Boolean(data.data.user?.isSubDepartment);
         if (requiredRole && userRole !== requiredRole) {
-          if (!(requiredRole === 'OFFICER' && userRole === 'ADMIN' && isSub)) {
+          // Allow OFFICER portal for ADMIN users with isSubDepartment, or ADMIN portal for OFFICER users
+          const officerAdminMatch = (requiredRole === 'OFFICER' && userRole === 'ADMIN' && isSub);
+          const adminOfficerMatch = (requiredRole === 'ADMIN' && userRole === 'OFFICER');
+          if (!officerAdminMatch && !adminOfficerMatch) {
             localStorage.setItem('grievance_user_auth_error_role', userRole);
             return { ok: false, errorRole: userRole };
           }
@@ -113,10 +117,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         saveSession(data.data.token, data.data.user);
         return { ok: true, user: { ...data.data.user, id: data.data.user.id || data.data.user._id } };
       }
+      return { ok: false, error: data.error || data.message || 'Login failed' };
     } catch (err) {
       console.error('Login error:', err);
     }
-    return { ok: false };
+    return { ok: false, error: 'Cannot connect to server' };
   };
 
   const refreshUser = async () => {
@@ -154,6 +159,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const googleLogin = async (credential: string): Promise<{ ok: boolean; user?: UserData; error?: string }> => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        saveSession(data.data.token, data.data.user);
+        return { ok: true, user: { ...data.data.user, id: data.data.user.id || data.data.user._id } };
+      }
+      return { ok: false, error: data.error || 'Google login failed' };
+    } catch (err) {
+      return { ok: false, error: 'Cannot connect to server' };
+    }
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -172,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         t,
         login,
         register,
+        googleLogin,
         logout,
         refreshUser,
         isPublic: user?.role === 'PUBLIC',

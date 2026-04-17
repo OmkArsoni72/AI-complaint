@@ -59,15 +59,32 @@ export const createComplaint = async (req: Request, res: Response) => {
     
     // Route complaint to the department that handles this category
     const deptInfo = await getDepartmentByCategory(category);
-    const deptDoc = await Department.findOne({ name: deptInfo.name }).select('_id name');
-    const departmentId = deptDoc?._id || null;
+    
+    // Use the department ID from DB match directly, or try finding by name
+    let departmentId = deptInfo._id || null;
+    let departmentName = deptInfo.name;
+    
+    if (!departmentId) {
+      // Fallback: try to find any department in DB matching the hardcoded name
+      const deptDoc = await Department.findOne({ name: deptInfo.name, isActive: true }).select('_id name');
+      if (deptDoc) {
+        departmentId = deptDoc._id;
+      } else {
+        // Last resort: try to find ANY active department that has this category in its categories array
+        const anyDept = await Department.findOne({ categories: category, isActive: true }).select('_id name');
+        if (anyDept) {
+          departmentId = anyDept._id;
+          departmentName = anyDept.name;
+        }
+      }
+    }
     
     const slaDeadline = calculateSLA(category, priority);
     const complaintId = generateComplaintId();
     const confidence = aiConfidence;
 
     // Find officer in the routed department
-    const officer = await Officer.findOne({ department: deptInfo.name, isActive: true })
+    const officer = await Officer.findOne({ department: departmentName, isActive: true })
       .sort({ pendingCount: 1 });
 
     const complaint = await Complaint.create({
@@ -76,7 +93,7 @@ export const createComplaint = async (req: Request, res: Response) => {
       category,
       priority,
       status: 'PENDING',
-      department: deptInfo.name,
+      department: departmentName,
       departmentId,
       location,
       assignedOfficer: officer?._id || null,
@@ -102,12 +119,12 @@ export const createComplaint = async (req: Request, res: Response) => {
     });
 
     // Emit real-time notification to department admins
-    emitToDepartment(deptInfo.name, 'new_complaint', {
+    emitToDepartment(departmentName, 'new_complaint', {
       complaintId,
       category,
       priority,
       userName,
-      department: deptInfo.name,
+      department: departmentName,
       location: location?.area,
       description: description.substring(0, 100),
       timestamp: new Date(),

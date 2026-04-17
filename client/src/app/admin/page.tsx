@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Shield, Users, PlusCircle, PencilLine, Trash2, MapPin, Tag, AlertCircle, Bell } from 'lucide-react';
+import { Shield, Users, PlusCircle, PencilLine, Trash2, MapPin, Tag, AlertCircle, Bell, Eye, X, ChevronRight, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/lib/auth';
 import { onEvent } from '@/lib/socket';
@@ -32,6 +32,10 @@ export default function AdminPage() {
   const [showEditMember, setShowEditMember] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
   const [isCreatingSubDepartment, setIsCreatingSubDepartment] = useState(false);
+  const [viewingSubDept, setViewingSubDept] = useState<any>(null);
+  const [subDeptComplaints, setSubDeptComplaints] = useState<any[]>([]);
+  const [subDeptStats, setSubDeptStats] = useState<any>(null);
+  const [loadingSubDeptView, setLoadingSubDeptView] = useState(false);
   const [newMember, setNewMember] = useState<any>({
     name: '',
     email: '',
@@ -94,7 +98,9 @@ export default function AdminPage() {
       });
 
       if (!res.success) {
-        toast.error(res.message || res.error || 'Failed to create sub-department');
+        const errMsg = res.message || res.error || 'Failed to create sub-department';
+        console.error('[createSubDept] Error:', errMsg);
+        toast.error(`❌ ${errMsg}`, { duration: 5000 });
         return;
       }
 
@@ -395,32 +401,48 @@ export default function AdminPage() {
                       <p className="text-[10px] text-white/40 truncate max-w-[150px]">{d.contactEmail || '—'}</p>
                     </div>
                     <div className="ml-auto flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingMember({
-                            _id: d._id,
-                            name: d.name || '',
-                            contactEmail: d.contactEmail || '',
-                            address: d.address || '',
-                            pincode: d.pincode || '',
-                            state: d.state || '',
-                            governmentId: d.governmentId || '',
-                          });
-                          setShowEditMember(true);
-                        }}
-                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10"
-                        title="Edit"
-                      >
-                        <PencilLine className="w-4 h-4 text-white/60" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteMember(d._id)}
-                        className="p-2 rounded-lg bg-white/5 hover:bg-danger-500/10 border border-white/10"
-                        title="Deactivate"
-                      >
-                        <Trash2 className="w-4 h-4 text-danger-400" />
-                      </button>
-                    </div>
+                        <button
+                          onClick={async () => {
+                            setLoadingSubDeptView(true);
+                            setViewingSubDept(d);
+                            const res = await api.getSubDepartmentComplaints(d._id);
+                            if (res.success && res.data) {
+                              setSubDeptComplaints(res.data.complaints || []);
+                              setSubDeptStats(res.data.stats || null);
+                            }
+                            setLoadingSubDeptView(false);
+                          }}
+                          className="p-2 rounded-lg bg-accent-500/10 hover:bg-accent-500/20 border border-accent-500/20 transition-colors"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4 text-accent-400" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingMember({
+                              _id: d._id,
+                              name: d.name || '',
+                              contactEmail: d.contactEmail || '',
+                              address: d.address || '',
+                              pincode: d.pincode || '',
+                              state: d.state || '',
+                              governmentId: d.governmentId || '',
+                            });
+                            setShowEditMember(true);
+                          }}
+                          className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10"
+                          title="Edit"
+                        >
+                          <PencilLine className="w-4 h-4 text-white/60" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMember(d._id)}
+                          className="p-2 rounded-lg bg-white/5 hover:bg-danger-500/10 border border-white/10"
+                          title="Deactivate"
+                        >
+                          <Trash2 className="w-4 h-4 text-danger-400" />
+                        </button>
+                      </div>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-[10px] font-bold text-primary-400 uppercase tracking-wider bg-primary-500/5 px-2 py-0.5 rounded-lg border border-primary-500/10">SUB-DEPARTMENT</span>
@@ -652,6 +674,160 @@ export default function AdminPage() {
                 <button type="submit" className="w-full sm:flex-1 btn-primary text-sm shadow-xl shadow-primary-500/20">Save Changes</button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Sub-Department Monitoring Modal */}
+      {viewingSubDept && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-md overflow-y-auto">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="glass-card w-full max-w-4xl p-5 sm:p-6 my-auto shadow-2xl border-white/10 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary-500/20">
+                  {viewingSubDept.name?.charAt(0)?.toUpperCase() || 'S'}
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">{viewingSubDept.name}</h2>
+                  <p className="text-[10px] text-white/40 uppercase tracking-wider">Sub-Department Monitoring • {viewingSubDept.state || 'N/A'}</p>
+                </div>
+              </div>
+              <button onClick={() => { setViewingSubDept(null); setSubDeptComplaints([]); setSubDeptStats(null); }}
+                className="p-2 rounded-xl border border-white/10 text-white/60 hover:text-white hover:bg-white/5 transition-all" aria-label="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {loadingSubDeptView ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-8 h-8 border-2 border-primary-500/30 border-t-primary-500 rounded-full animate-spin" />
+              </div>
+            ) : (
+              <>
+                {/* Stats Overview */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+                  {[
+                    { label: 'Total', value: subDeptStats?.total || 0, cls: 'border-white/10 bg-white/5 text-white' },
+                    { label: 'Pending', value: subDeptStats?.pending || 0, cls: 'border-warning-500/30 bg-warning-500/5 text-warning-400' },
+                    { label: 'In Progress', value: subDeptStats?.inProgress || 0, cls: 'border-primary-500/30 bg-primary-500/5 text-primary-400' },
+                    { label: 'Resolved', value: subDeptStats?.resolved || 0, cls: 'border-success-500/30 bg-success-500/5 text-success-400' },
+                    { label: 'Escalated', value: subDeptStats?.escalated || 0, cls: 'border-danger-500/30 bg-danger-500/5 text-danger-400' },
+                  ].map((s) => (
+                    <div key={s.label} className={`rounded-xl p-3 border ${s.cls}`}>
+                      <p className="text-[9px] uppercase tracking-widest font-bold opacity-60">{s.label}</p>
+                      <p className="text-xl font-black mt-1">{s.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Performance Bar */}
+                {(subDeptStats?.total || 0) > 0 && (
+                  <div className="mb-6 glass-card p-4 border border-white/5">
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-white/30 mb-3">Resolution Rate</p>
+                    <div className="w-full h-3 rounded-full bg-white/5 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-success-500 to-success-400 transition-all duration-500"
+                        style={{ width: `${Math.round(((subDeptStats?.resolved || 0) / (subDeptStats?.total || 1)) * 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-white/50 mt-2">
+                      {Math.round(((subDeptStats?.resolved || 0) / (subDeptStats?.total || 1)) * 100)}% resolved
+                      <span className="text-white/30"> • {subDeptStats?.resolved || 0} of {subDeptStats?.total || 0} complaints</span>
+                    </p>
+                  </div>
+                )}
+
+                {/* Complaints Table */}
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-white/30 mb-3">Assigned Complaints</p>
+                  {subDeptComplaints.length === 0 ? (
+                    <div className="text-center py-8 text-white/30 text-sm">No complaints assigned to this sub-department</div>
+                  ) : (
+                    <div className="overflow-hidden rounded-xl border border-white/5">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-white/5 bg-white/[0.02]">
+                            {['ID', 'Description', 'Status', 'Priority', 'Date', 'Last Update'].map((h) => (
+                              <th key={h} className="text-left px-3 py-2 text-[9px] uppercase tracking-wider text-white/30 font-semibold">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {subDeptComplaints.slice(0, 20).map((c: any, i: number) => (
+                            <tr key={c._id || i} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                              <td className="px-3 py-2 text-[10px] font-mono text-primary-400">
+                                #{(c.complaintId || c._id || '').toString().slice(-6)}
+                              </td>
+                              <td className="px-3 py-2 text-xs text-white/60 max-w-[200px] truncate">{c.description}</td>
+                              <td className="px-3 py-2">
+                                <span className={`text-[9px] px-2 py-0.5 rounded-lg font-bold ${
+                                  c.status === 'RESOLVED' ? 'bg-success-500/15 text-success-400' :
+                                  c.status === 'IN_PROGRESS' ? 'bg-primary-500/15 text-primary-400' :
+                                  c.status === 'ESCALATED' ? 'bg-danger-500/15 text-danger-400' :
+                                  c.status === 'REJECTED' ? 'bg-danger-500/15 text-danger-400' :
+                                  'bg-warning-500/15 text-warning-400'
+                                }`}>{c.status}</span>
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={`text-[9px] px-2 py-0.5 rounded-lg font-bold ${
+                                  c.priority === 'HIGH' || c.priority === 'CRITICAL' ? 'bg-danger-500/15 text-danger-400' :
+                                  c.priority === 'MEDIUM' ? 'bg-warning-500/15 text-warning-400' :
+                                  'bg-white/10 text-white/50'
+                                }`}>{c.priority}</span>
+                              </td>
+                              <td className="px-3 py-2 text-[10px] text-white/40">
+                                {new Date(c.createdAt).toLocaleDateString()}
+                              </td>
+                              <td className="px-3 py-2 text-[10px] text-white/40 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {new Date(c.updatedAt).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {subDeptComplaints.length > 20 && (
+                        <div className="px-3 py-2 text-[10px] text-white/30 text-center border-t border-white/5">
+                          Showing 20 of {subDeptComplaints.length} complaints
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Recent Activity / Notes */}
+                {subDeptComplaints.some((c: any) => c.notes && c.notes.length > 0) && (
+                  <div className="mt-6">
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-white/30 mb-3">Recent Activity</p>
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                      {subDeptComplaints
+                        .flatMap((c: any) => (c.notes || []).map((n: any) => ({ ...n, complaintId: c.complaintId || c._id })))
+                        .sort((a: any, b: any) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime())
+                        .slice(0, 15)
+                        .map((note: any, i: number) => (
+                          <div key={i} className="flex items-start gap-3 py-2 px-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                            <ChevronRight className="w-3 h-3 text-primary-400 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-white/60 truncate">{note.text}</p>
+                              <p className="text-[9px] text-white/25 mt-0.5">
+                                {note.addedBy} • #{(note.complaintId || '').toString().slice(-6)} • {new Date(note.addedAt).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="flex gap-3 pt-6 mt-4 border-t border-white/5">
+              <button onClick={() => { setViewingSubDept(null); setSubDeptComplaints([]); setSubDeptStats(null); }}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-white/60 hover:bg-white/5 transition-all text-sm">Close</button>
+            </div>
           </motion.div>
         </div>
       )}

@@ -167,15 +167,23 @@ export const createSubDepartment = async (req: AuthRequest, res: Response) => {
     const { name, email, password, address, pincode, state, governmentId } = req.body;
     const deptName = typeof name === 'string' ? name.trim() : '';
     const deptEmail = typeof email === 'string' ? email.trim() : '';
+    console.log('[createSubDept] body:', { deptName, deptEmail, hasPassword: !!password });
     if (!deptName || !deptEmail || !password) {
+      console.log('[createSubDept] FAIL: missing fields', { deptName: !!deptName, deptEmail: !!deptEmail, password: !!password });
       return res.status(400).json({ success: false, error: 'name, email and password are required' });
     }
 
-    const existing = await Department.findOne({ name: deptName });
-    if (existing) return res.status(400).json({ success: false, error: 'Department name already exists' });
+    const existing = await Department.findOne({ name: { $regex: new RegExp(`^${deptName}$`, 'i') }, isActive: true });
+    if (existing) {
+      console.log('[createSubDept] FAIL: dept name exists =>', deptName, '(matched:', existing.name, ')');
+      return res.status(400).json({ success: false, error: `"${deptName}" naam ka department pehle se hai. Alag naam use karo.` });
+    }
 
     const existingUser = await User.findOne({ email: deptEmail });
-    if (existingUser) return res.status(400).json({ success: false, error: 'Email already exists' });
+    if (existingUser) {
+      console.log('[createSubDept] FAIL: email exists =>', deptEmail);
+      return res.status(400).json({ success: false, error: 'Email already exists' });
+    }
 
     const hashed = await bcrypt.hash(password, 10);
 
@@ -415,12 +423,24 @@ export const getAdminComplaints = async (req: AuthRequest, res: Response) => {
             ...(subDeptId ? [{ departmentId: subDeptId }] : []),
           ],
         }
-      : {
-          $or: [
+      : (() => {
+          const orConditions: any[] = [
             { departmentId: { $in: scope.deptIds } },
             { department: scope.dept.name },
-          ],
-        };
+          ];
+          // Also match by department categories
+          const deptCategories = scope.dept.categories;
+          if (Array.isArray(deptCategories) && deptCategories.length > 0) {
+            orConditions.push({ category: { $in: deptCategories } });
+          }
+          // If department has NO categories and only 1 deptId (no sub-departments yet),
+          // show ALL complaints so admin is never blocked
+          const hasNoCategories = !Array.isArray(deptCategories) || deptCategories.length === 0;
+          if (hasNoCategories) {
+            return {}; // No filter = all complaints visible
+          }
+          return { $or: orConditions };
+        })();
 
     if (typeof req.query.status === 'string' && req.query.status.trim()) {
       query.status = req.query.status.trim();
@@ -841,6 +861,49 @@ export const addComplaintRemark = async (req: AuthRequest, res: Response) => {
     });
 
     res.json({ success: true, data: complaint });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// GET /api/admin/sub-departments/:id/complaints — Admin monitors sub-department complaints
+export const getSubDepartmentComplaints = async (req: AuthRequest, res: Response) => {
+  try {
+    const scope = await buildDeptScope(req);
+    if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
+
+    const subDeptId = req.params.id;
+    const subDept = await Department.findOne({
+      _id: subDeptId,
+      parentDepartmentId: scope.dept._id,
+      isActive: true,
+    });
+    if (!subDept) return res.status(404).json({ success: false, error: 'Sub-department not found' });
+
+    const complaints = await Complaint.find({
+      $or: [
+        { departmentId: subDept._id },
+        { department: subDept.name },
+      ],
+    }).sort({ createdAt: -1 });
+
+    const stats = {
+      total: complaints.length,
+      pending: complaints.filter(c => c.status === 'PENDING').length,
+      inProgress: complaints.filter(c => c.status === 'IN_PROGRESS').length,
+      resolved: complaints.filter(c => c.status === 'RESOLVED').length,
+      escalated: complaints.filter(c => c.status === 'ESCALATED').length,
+      rejected: complaints.filter(c => c.status === 'REJECTED').length,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        subDepartment: subDept,
+        complaints,
+        stats,
+      },
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

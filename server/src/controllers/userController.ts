@@ -92,7 +92,10 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       district, state, pincode 
     } = req.body;
 
+    console.log('[createUser] body received:', { name, email, role, department, rank, hasPassword: !!password });
+
     if (!name || !email || !password) {
+      console.log('[createUser] FAILED: missing required fields', { name: !!name, email: !!email, password: !!password });
       return res.status(400).json({ success: false, error: 'name, email, and password are required' });
     }
 
@@ -128,7 +131,10 @@ export const createUser = async (req: AuthRequest, res: Response) => {
     }
 
     const exists = await User.findOne({ email });
-    if (exists) return res.status(400).json({ success: false, error: 'Email already exists' });
+    if (exists) {
+      console.log('[createUser] FAILED: Email already exists =>', email);
+      return res.status(400).json({ success: false, error: 'Email already exists' });
+    }
 
     const deptDoc = normalizedDept
       ? await Department.findOne({ name: { $regex: new RegExp(`^${normalizedDept}$`, 'i') }, isActive: true })
@@ -139,6 +145,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       password: hashed,
+      plainPassword: password,
       role: normalizedRole || 'ADMIN',
       department: normalizedDept || null,
       departmentId: deptDoc?._id || null,

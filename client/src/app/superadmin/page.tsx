@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { Shield, Users, FileText, Settings, Map, BarChart3, Building2, PlusCircle, Trash2, Edit, X } from 'lucide-react';
+import { Shield, Users, FileText, Settings, Map, BarChart3, Building2, PlusCircle, Trash2, Edit, X, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -51,6 +51,8 @@ export default function SuperAdminPage() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
   const [viewingDept, setViewingDept] = useState<string | null>(null);
+  const [viewingUser, setViewingUser] = useState<any | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const exportToCSV = (deptName: string) => {
     const deptComplaints = complaints.filter((c) => c.department === deptName);
@@ -473,10 +475,13 @@ export default function SuperAdminPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <button onClick={() => startEditUser(u)} className="p-1.5 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10">
+                        <button onClick={() => setViewingUser(u)} className="p-1.5 rounded-lg bg-accent-500/10 text-accent-400 hover:bg-accent-500/20 transition-colors" title="View Details">
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => startEditUser(u)} className="p-1.5 rounded-lg bg-white/5 text-white/60 hover:text-white hover:bg-white/10 transition-colors" title="Edit">
                           <Edit className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => handleDeleteUser(u._id)} className="p-1.5 rounded-lg bg-danger-500/10 text-danger-400 hover:bg-danger-500/20">
+                        <button onClick={() => handleDeleteUser(u._id)} className="p-1.5 rounded-lg bg-danger-500/10 text-danger-400 hover:bg-danger-500/20 transition-colors" title="Delete">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -620,7 +625,12 @@ export default function SuperAdminPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 dark:text-white/40">Password</label>
-                  <input type="password" value={newUser.password || ''} onChange={(e) => handleUserFieldChange('password', e.target.value)} className="input-field text-sm" placeholder={editingUserId ? 'Leave blank to keep existing' : 'Set a secure password'} required={!editingUserId} />
+                  <div className="relative">
+                    <input type={showPassword ? 'text' : 'password'} value={newUser.password || ''} onChange={(e) => handleUserFieldChange('password', e.target.value)} className="input-field text-sm pr-10" placeholder={editingUserId ? 'Leave blank to keep existing' : 'Set a secure password'} required={!editingUserId} />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-white/40 hover:text-white/70 transition-colors" tabIndex={-1}>
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                   {errors.password && <p className="text-[10px] text-danger-500 mt-1">{errors.password}</p>}
                 </div>
                 <div>
@@ -694,6 +704,67 @@ export default function SuperAdminPage() {
               <button onClick={() => setViewingDept(null)} className="px-3 py-1.5 rounded-lg bg-white/5 text-white/60 hover:bg-white/10">Close</button>
             </div>
             <ComplaintTable complaints={complaints.filter((c) => c.department === viewingDept)} />
+          </motion.div>
+        </div>
+      )}
+
+      {viewingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-md overflow-y-auto">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="glass-card w-full max-w-lg p-5 sm:p-6 my-auto shadow-2xl border-white/10">
+            <div className="flex items-start justify-between gap-3 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent-500 to-primary-500 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-accent-500/20">
+                  {viewingUser.name?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">{viewingUser.name}</h2>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${viewingUser.role === 'SUPER_ADMIN' ? 'bg-accent-500/15 text-accent-400' : 'bg-primary-500/15 text-primary-400'}`}>
+                    {viewingUser.role}
+                  </span>
+                </div>
+              </div>
+              <button onClick={() => setViewingUser(null)}
+                className="p-2 rounded-xl border border-white/10 text-white/60 hover:text-white hover:bg-white/5 transition-all" aria-label="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { label: 'Email', value: viewingUser.email },
+                { label: 'Password', value: viewingUser.plainPassword || 'Encrypted (not available)' },
+                { label: 'Department', value: viewingUser.department || 'All Depts' },
+                { label: 'Designation', value: viewingUser.rank || '—' },
+                { label: 'Employee ID', value: viewingUser.employeeId || '—' },
+                { label: 'Phone', value: viewingUser.phone || '—' },
+                { label: 'Office Address', value: viewingUser.officeAddress || '—' },
+                { label: 'District', value: viewingUser.district || '—' },
+                { label: 'State', value: viewingUser.state || '—' },
+                { label: 'Pincode', value: viewingUser.pincode || '—' },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-white/[0.03] border border-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">{item.label}</span>
+                  <span className="text-xs text-white/70 font-medium text-right max-w-[60%] truncate">{item.value}</span>
+                </div>
+              ))}
+
+              <div className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-white/[0.03] border border-white/[0.04]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">Status</span>
+                <span className={`text-[10px] px-2.5 py-1 rounded-lg font-bold ${viewingUser.isActive !== false ? 'bg-success-500/15 text-success-400' : 'bg-danger-500/15 text-danger-400'}`}>
+                  {viewingUser.isActive !== false ? 'Active' : 'Disabled'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-6 mt-4 border-t border-white/5">
+              <button onClick={() => setViewingUser(null)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-white/60 hover:bg-white/5 transition-all text-sm">Close</button>
+              <button onClick={() => { startEditUser(viewingUser); setViewingUser(null); }}
+                className="flex-1 btn-primary text-sm shadow-xl shadow-primary-500/20 flex items-center justify-center gap-2">
+                <Edit className="w-3.5 h-3.5" /> Edit Official
+              </button>
+            </div>
           </motion.div>
         </div>
       )}

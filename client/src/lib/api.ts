@@ -121,6 +121,10 @@ export const api = {
   deleteSubDepartment: async (id: string) => {
     return await fetchApi<any>(`/admin/sub-departments/${id}`, { method: 'DELETE' });
   },
+
+  getSubDepartmentComplaints: async (id: string) => {
+    return await fetchApi<any>(`/admin/sub-departments/${id}/complaints`);
+  },
   // ── Complaints ──────────────────────────────────────────
   getComplaints: async (params?: string) => {
     return await fetchApi<any[]>(`/complaints${params ? `?${params}` : ''}`);

@@ -15,6 +15,7 @@ import {
   assignSubDepartment,
   updateComplaintStatus,
   addComplaintRemark,
+  getSubDepartmentComplaints,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -39,6 +40,7 @@ router.get('/sub-departments', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), 
 router.post('/sub-departments', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), createSubDepartment);
 router.patch('/sub-departments/:id', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), updateSubDepartment);
 router.delete('/sub-departments/:id', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), deleteSubDepartment);
+router.get('/sub-departments/:id/complaints', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), getSubDepartmentComplaints);
 
 router.get('/officers', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), getAdminOfficers);
 router.post('/officers', verifyAuth, requireRole('ADMIN', 'SUPER_ADMIN'), createOfficer);

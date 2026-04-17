@@ -45,6 +45,9 @@ export default function AdminSidebar({ collapsed, onToggle }: SidebarProps) {
 
   const adminSection = searchParams.get('section') || 'overview';
 
+  const isSubDepartment = user?.isSubDepartment || (user?.role === 'OFFICER');
+  const subDeptBase = '/sub-department';
+
   const navItems = user?.role === 'SUPER_ADMIN'
     ? [
         { label: 'Dashboard', icon: LayoutDashboard, href: '/superadmin/dashboard' },
@@ -53,10 +56,9 @@ export default function AdminSidebar({ collapsed, onToggle }: SidebarProps) {
         { label: 'Analytics', icon: BarChart3, href: '/superadmin/analytics' },
         { label: 'Officer Desk', icon: Users, href: '/superadmin/officer-desk' },
       ]
-    : user?.role === 'OFFICER'
+    : isSubDepartment
     ? [
-        { label: 'Dashboard', icon: LayoutDashboard, href: '/sub-department' },
-        { label: 'My Complaints', icon: FileText, href: '/sub-department' },
+        { label: 'Dashboard', icon: LayoutDashboard, href: subDeptBase },
       ]
     : [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/admin?section=dashboard', sectionKey: 'dashboard' },

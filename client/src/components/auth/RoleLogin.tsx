@@ -26,7 +26,7 @@ const roleMeta: Record<RoleType, { icon: any; label: string }> = {
 
 export default function RoleLogin({ role, title, subtitle, redirectTo, portalGuard = 'ANY_ADMIN' }: RoleLoginProps) {
   const router = useRouter();
-  const { login, register, logout } = useAuth();
+  const { login, register, logout, googleLogin } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -36,6 +36,9 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, portalGua
   const [error, setError] = useState('');
   const [particles, setParticles] = useState<any[]>([]);
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
   useEffect(() => {
     const p = [...Array(18)].map((_, i) => ({
@@ -46,6 +49,8 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, portalGua
       duration: `${3 + Math.random() * 4}s`,
       size: `${2 + Math.random() * 4}px`,
     }));
+    setParticles(p);
+
     setParticles(p);
   }, []);
 
@@ -73,7 +78,9 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, portalGua
     } else {
       if (result.errorRole) {
         const stored = result.errorRole;
-        setError(`This account is registered as ${stored}. Please use the ${stored === 'SUPER_ADMIN' ? 'Superadmin' : stored === 'ADMIN' ? 'Admin' : 'Citizen'} login.`);
+        setError(`This account is registered as ${stored}. Please use the ${stored === 'SUPER_ADMIN' ? 'Superadmin' : stored === 'ADMIN' ? 'Admin' : stored === 'OFFICER' ? 'Officer' : 'Citizen'} login.`);
+      } else if (result.error) {
+        setError(result.error);
       } else {
         setError(`Invalid credentials or access denied for ${roleMeta[role].label} portal.`);
       }
@@ -299,6 +306,57 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, portalGua
                 </>
               )}
             </button>
+
+            {role === 'PUBLIC' && (
+              <>
+                <div className="flex items-center gap-3 my-1">
+                  <div className="flex-1 h-px bg-white/10" />
+                  <span className="text-[10px] uppercase tracking-widest text-white/25 font-bold">or</span>
+                  <div className="flex-1 h-px bg-white/10" />
+                </div>
+                <button
+                  type="button"
+                  disabled={googleLoading}
+                  onClick={async () => {
+                    setGoogleLoading(true);
+                    setError('');
+                    try {
+                      // Dynamically import to avoid SSR issues
+                      const { auth, googleProvider, signInWithPopup } = await import('@/lib/firebase');
+                      const result = await signInWithPopup(auth, googleProvider);
+                      // Get the ID token from Firebase to send to our backend
+                      const token = await result.user.getIdToken();
+                      
+                      // We use process.env here indirectly - if firebase logged them in, it's valid.
+                      // Send token to our server endpoint which decodes the JWT and registers/logs in
+                      const backendResult = await googleLogin(token);
+                      if (backendResult.ok) {
+                        router.push(redirectTo);
+                      } else {
+                        setError(backendResult.error || 'Google login failed on server');
+                      }
+                    } catch (err: any) {
+                      console.error('Google Sign-In Error:', err);
+                      // Don't show error for user-cancelled popups
+                      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+                        setError(err.message || 'Google sign-in failed');
+                      }
+                    } finally {
+                      setGoogleLoading(false);
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] transition-all text-sm font-semibold text-white/70 hover:text-white"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                  </svg>
+                  {googleLoading ? 'Connecting...' : 'Continue with Google'}
+                </button>
+              </>
+            )}
           </form>
 
 
