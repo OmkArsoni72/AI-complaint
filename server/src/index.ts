@@ -67,24 +67,29 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Connect & Start
-connectDB().then(() => {
-  startEscalationMonitor();
+if (!process.env.VERCEL) {
+  connectDB().then(() => {
+    startEscalationMonitor();
 
-  httpServer.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`\n❌ Port ${PORT} is already in use.`);
-      console.error(`   Run this to free it:  npx kill-port ${PORT}`);
-      console.error(`   Or:  netstat -ano | findstr :${PORT}  then  taskkill /PID <pid> /F\n`);
-      process.exit(1);
-    } else {
-      throw err;
-    }
-  });
+    httpServer.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`\n❌ Port ${PORT} is already in use.`);
+        console.error(`   Run this to free it:  npx kill-port ${PORT}`);
+        console.error(`   Or:  netstat -ano | findstr :${PORT}  then  taskkill /PID <pid> /F\n`);
+        process.exit(1);
+      } else {
+        throw err;
+      }
+    });
 
-  httpServer.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📋 Routes: auth, complaints, users, notifications, admin, officer, departments, analytics, audit, superadmin, sla`);
+    httpServer.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(`📋 Routes: auth, complaints, users, notifications, admin, officer, departments, analytics, audit, superadmin, sla`);
+    });
   });
-});
+} else {
+  // Vercel Serverless Execution
+  connectDB().catch(console.error);
+}
 
 export default app;
