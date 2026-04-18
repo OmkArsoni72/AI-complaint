@@ -105,6 +105,12 @@ export const login = async (req: Request, res: Response) => {
         await user.save();
         valid = true;
       }
+      if (!valid && typeof user.plainPassword === 'string' && user.plainPassword === password) {
+        const hashed = await bcrypt.hash(password, 10);
+        user.password = hashed;
+        await user.save();
+        valid = true;
+      }
     } else {
       const hashed = await bcrypt.hash(password, 10);
       user.password = hashed;

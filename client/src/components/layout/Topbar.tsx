@@ -39,13 +39,13 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
     // ── Real-time Notifications ──────────────────────────────────────
     const unSubCreated = onEvent('complaint_created', () => {
       fetchNotifications();
-      toast('New grievance reported in your area', { icon: '📢', style: { border: '1px solid #3b82f6', background: '#0f172a', color: '#fff' } });
+      toast('New grievance reported in your area', { style: { border: '1px solid #3b82f6', background: '#0f172a', color: '#fff' } });
     }, token);
 
     const unSubUpdated = onEvent('complaint_updated', (complaint) => {
       fetchNotifications();
       if (complaint.userId === user?.id) {
-        toast.success(`Your complaint status updated: ${complaint.status}`, { icon: '✅' });
+        toast.success(`Your complaint status updated: ${complaint.status}`);
       }
     }, token);
 
@@ -54,7 +54,6 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
       fetchNotifications();
       if (payload?.title || payload?.message) {
         toast(payload?.title || 'New update', {
-          icon: '🔔',
           style: { border: '1px solid #22c55e', background: '#0f172a', color: '#fff' },
         });
       }
@@ -83,7 +82,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
     try {
       const res: any = await api.simulateCrisis();
       if (res.success) {
-        toast.success(res.message || 'Crisis simulated!', { icon: '🚨', duration: 5000 });
+        toast.success(res.message || 'Crisis simulated!', { duration: 5000 });
         window.dispatchEvent(new CustomEvent('crisis-simulated'));
       } else {
         toast.error('Failed to simulate crisis');
@@ -134,7 +133,7 @@ export default function Topbar({ onMenuToggle }: TopbarProps) {
                        bg-slate-100 border-slate-200 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500/50"
           />
           <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] dark:text-white/20 text-slate-400 rounded border dark:border-white/[0.08] border-slate-200 dark:bg-black/20 bg-white shadow-sm">
-            ⌘K
+            Ctrl+K
           </kbd>
         </div>
       </div>

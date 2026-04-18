@@ -8,6 +8,7 @@ export interface ITimelineStep {
 export interface IComplaint extends Document {
   complaintId: string;
   description: string;
+  rawCategory?: string;
   category: string;
   status: string;
   priority: string;

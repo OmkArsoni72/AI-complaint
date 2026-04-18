@@ -52,14 +52,12 @@ export default function CitizenDashboard() {
 
     const unsubCreated = onEvent('complaint_created', (complaint) => {
       toast.success(`Broadcasting: New ${complaint.category} issue reported nearby.`, {
-        icon: '📢',
         style: { background: '#1e293b', color: '#fff', border: '1px solid #334155' }
       });
     });
 
     const unsubEscalated = onEvent('complaint_escalated', (complaint) => {
       toast.error(`Emergency Update: A grievance has been escalated in your zone.`, {
-        icon: '🚨',
         style: { background: '#1e293b', color: '#fff', border: '1px solid #334155' }
       });
     });

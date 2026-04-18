@@ -12,73 +12,12 @@ import {
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 
-const DEFAULT_CATEGORIES = [
-  'Water Supply', 'Electricity', 'Traffic & Transport',
-  'Sanitation', 'Public Safety', 'Environment',
-  'Health', 'Education', 'Infrastructure',
-];
-
-// AI simulation on frontend for instant feedback
-function clientDetectCategory(text: string): string {
-  const lower = text.toLowerCase();
-  if (/water|pipeline|drain|leak|sewage|tap|flood|paani|jal|nall/.test(lower)) return 'Water Supply';
-  if (/electricity|power|light|outage|wire|spark|transformer|bijli|taar/.test(lower)) return 'Electricity';
-  if (/traffic|road|pothole|signal|accident|jam|highway|sadak|rasta|gadda/.test(lower)) return 'Traffic & Transport';
-  if (/garbage|clean|waste|filth|sanitation|dump|rubbish|kachra|gunda|safai/.test(lower)) return 'Sanitation';
-  if (/safety|crime|police|robbery|assault|theft|harassment|danger|shakti|chor/.test(lower)) return 'Public Safety';
-  if (/park|tree|garden|pollution|environment|ped|per|pradushan/.test(lower)) return 'Environment';
-  if (/hospital|health|medical|disease|clinic|bimari|aspatal/.test(lower)) return 'Health';
-  if (/building|collapse|construction|encroachment|girna|ghar|makan/.test(lower)) return 'Infrastructure';
-  return '';
-}
-
-function clientDetectPriority(text: string): 'HIGH' | 'MEDIUM' | 'LOW' {
-  const lower = text.toLowerCase();
-  if (/fire|accident|collapse|emergency|urgent|danger|death|explosion|toxic|gas leak|aag|khatra|maut/.test(lower)) return 'HIGH';
-  if (/broken|leak|not working|damaged|pothole|outage|contaminated|blocked|toota|kharab|paresani/.test(lower)) return 'MEDIUM';
-  return 'LOW';
-}
-
-function clientDetectTags(text: string, category: string): string[] {
-  const lower = text.toLowerCase();
-  const tags: string[] = [];
-  if (/leak|leaking|leakage/.test(lower)) tags.push('leakage');
-  if (/urgent|emergency|immediately|fire|critical/.test(lower)) tags.push('urgent');
-  if (/pothole|road damage|broken road/.test(lower)) tags.push('road-damage');
-  if (/no water|water shortage|dry tap/.test(lower)) tags.push('no-water');
-  if (/power cut|no electricity|outage|blackout/.test(lower)) tags.push('power-cut');
-  if (/garbage|waste|dump|rubbish|trash/.test(lower)) tags.push('garbage');
-  if (/flood|waterlogging|overflow/.test(lower)) tags.push('flooding');
-  if (/danger|hazard|unsafe|risk/.test(lower)) tags.push('safety-risk');
-  if (/noise|loud|disturbance/.test(lower)) tags.push('noise');
-  if (category) tags.push(category.toLowerCase().replace(/[& ]+/g, '-'));
-  return [...new Set(tags)].slice(0, 6);
-}
-
-const DEPT_MAP: Record<string, string> = {
-  'Water Supply': 'Delhi Jal Board',
-  'Electricity': 'BSES / TPDDL',
-  'Traffic & Transport': 'Delhi Traffic Police',
-  'Sanitation': 'Municipal Corporation of Delhi',
-  'Public Safety': 'Delhi Police',
-  'Environment': 'Delhi Pollution Control Committee',
-  'Health': 'Delhi Health Services',
-  'Infrastructure': 'Public Works Department',
-  '': 'Auto-detecting...',
-};
-
-const SLA_MAP: Record<string, Record<string, string>> = {
-  'Water Supply': { HIGH: '4 hrs', MEDIUM: '24 hrs', LOW: '48 hrs' },
-  'Electricity': { HIGH: '2 hrs', MEDIUM: '12 hrs', LOW: '24 hrs' },
-  'Traffic & Transport': { HIGH: '1 hr', MEDIUM: '8 hrs', LOW: '24 hrs' },
-  'Public Safety': { HIGH: '30 min', MEDIUM: '4 hrs', LOW: '12 hrs' },
-  'Sanitation': { HIGH: '6 hrs', MEDIUM: '24 hrs', LOW: '72 hrs' },
-};
+const DEFAULT_CATEGORIES: string[] = [];
 
 const PRIORITY_CONFIG = {
-  HIGH:   { label: 'HIGH',   color: 'text-rose-400',  bg: 'bg-rose-500/10',  border: 'border-rose-500/30',   icon: '🔴', desc: 'Immediate action required' },
-  MEDIUM: { label: 'MEDIUM', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30',  icon: '🟡', desc: 'Action within 24 hours' },
-  LOW:    { label: 'LOW',    color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', icon: '🟢', desc: 'Standard processing time' },
+  HIGH:   { label: 'HIGH',   color: 'text-rose-400',  bg: 'bg-rose-500/10',  border: 'border-rose-500/30',   icon: '', desc: 'Immediate action required' },
+  MEDIUM: { label: 'MEDIUM', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30',  icon: '', desc: 'Action within 24 hours' },
+  LOW:    { label: 'LOW',    color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', icon: '', desc: 'Standard processing time' },
 };
 
 type DuplicateCheckResult = {
@@ -111,8 +50,8 @@ export default function NewComplaintPage() {
         if (res?.success && res.data?.length > 0) {
           const cats = new Set<string>();
           res.data.forEach((dept: any) => {
-            if (dept.categories && Array.isArray(dept.categories)) {
-              dept.categories.forEach((cat: string) => cats.add(cat));
+            if (typeof dept.name === 'string' && dept.name.trim()) {
+              cats.add(dept.name.trim());
             }
           });
           if (cats.size > 0) {
@@ -159,6 +98,9 @@ export default function NewComplaintPage() {
   const [aiCategory, setAiCategory] = useState('');
   const [aiPriority, setAiPriority] = useState<'HIGH' | 'MEDIUM' | 'LOW'>('LOW');
   const [aiTags, setAiTags] = useState<string[]>([]);
+  const [aiDepartment, setAiDepartment] = useState('');
+  const [aiSlaDeadline, setAiSlaDeadline] = useState<string | null>(null);
+  const [aiNoIssue, setAiNoIssue] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisVisible, setAnalysisVisible] = useState(false);
 
@@ -186,18 +128,34 @@ export default function NewComplaintPage() {
   useEffect(() => {
     if (!description.trim() || description.length < 10) {
       setAnalysisVisible(false);
+      setAiCategory('');
+      setAiPriority('LOW');
+      setAiTags([]);
+      setAiDepartment('');
+      setAiSlaDeadline(null);
+      setAiNoIssue(false);
       return;
     }
     setIsAnalyzing(true);
-    const timer = setTimeout(() => {
-      const detectedCat = category || clientDetectCategory(description);
-      const detectedPri = clientDetectPriority(description);
-      const detectedTags = clientDetectTags(description, detectedCat);
-      setAiCategory(detectedCat);
-      setAiPriority(detectedPri);
-      setAiTags(detectedTags);
-      setIsAnalyzing(false);
-      setAnalysisVisible(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.analyzeComplaint(description, category || undefined);
+        if (res.success && res.data) {
+          setAiCategory(res.data.category || '');
+          setAiPriority(res.data.priority || 'LOW');
+          setAiTags(Array.isArray(res.data.tags) ? res.data.tags : []);
+          setAiDepartment(res.data.department || '');
+          setAiSlaDeadline(res.data.slaDeadline || null);
+          setAiNoIssue(Boolean(res.data.noIssue));
+          setAnalysisVisible(true);
+        } else {
+          setAnalysisVisible(false);
+        }
+      } catch {
+        setAnalysisVisible(false);
+      } finally {
+        setIsAnalyzing(false);
+      }
     }, 700);
     return () => clearTimeout(timer);
   }, [description, category]);
@@ -396,9 +354,16 @@ export default function NewComplaintPage() {
   };
 
   const priorityInfo = PRIORITY_CONFIG[aiPriority] || PRIORITY_CONFIG.LOW;
-  const effectiveCategory = category || aiCategory;
-  const slaTime = SLA_MAP[effectiveCategory]?.[aiPriority] || '48 hrs';
-  const dept = DEPT_MAP[effectiveCategory] || 'Auto-detecting...';
+  const effectiveCategory = category || aiCategory || 'General';
+  const dept = aiDepartment || 'No matching department';
+  const formatSla = (deadline: string | null) => {
+    if (!deadline) return '—';
+    const diffMs = new Date(deadline).getTime() - Date.now();
+    if (!Number.isFinite(diffMs)) return '—';
+    const hours = Math.max(0, Math.round(diffMs / (1000 * 60 * 60)));
+    return `${hours} hrs`;
+  };
+  const slaTime = formatSla(aiSlaDeadline);
 
   const formatTime = (s: number) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
 
@@ -424,7 +389,9 @@ export default function NewComplaintPage() {
             <div className="flex justify-between items-center text-sm">
               <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Priority</span>
               <span className={`font-black ${PRIORITY_CONFIG[submittedData.priority as 'HIGH'|'MEDIUM'|'LOW']?.color.replace('-400', '-600') || 'text-slate-900 dark:text-white'}`}>
-                {PRIORITY_CONFIG[submittedData.priority as 'HIGH'|'MEDIUM'|'LOW']?.icon} {submittedData.priority}
+                {PRIORITY_CONFIG[submittedData.priority as 'HIGH'|'MEDIUM'|'LOW']?.icon
+                  ? `${PRIORITY_CONFIG[submittedData.priority as 'HIGH'|'MEDIUM'|'LOW']?.icon} ${submittedData.priority}`
+                  : submittedData.priority}
               </span>
             </div>
             <div className="flex justify-between items-center text-sm">
@@ -613,7 +580,7 @@ export default function NewComplaintPage() {
                   onChange={e => setCategory(e.target.value)}
                   className="w-full bg-transparent dark:text-white text-slate-900 font-bold focus:outline-none appearance-none cursor-pointer pr-10 py-2 border-b-2 border-slate-100 dark:border-white/5 transition-colors focus:border-primary-500/50"
                 >
-                  <option value="" className="dark:bg-slate-900 bg-white">⚡ Auto-detect (AI)</option>
+                  <option value="" className="dark:bg-slate-900 bg-white">Auto-detect (AI)</option>
                   {dynamicCategories.map(c => (
                     <option key={c} value={c} className="dark:bg-slate-900 bg-white">{c}</option>
                   ))}

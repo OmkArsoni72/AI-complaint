@@ -20,6 +20,7 @@ export interface IDepartment extends Document {
   governmentId: string;
   contactEmail: string;
   adminUserId: mongoose.Types.ObjectId | null;
+  createdBy: mongoose.Types.ObjectId | null;
   isActive: boolean;
 }
 
@@ -30,7 +31,7 @@ const RankSchema = new Schema<IRank>({
 
 const DepartmentSchema = new Schema<IDepartment>(
   {
-    name: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
     parentDepartmentId: { type: Schema.Types.ObjectId, ref: 'Department', default: null },
     type: { type: String, default: 'General' },
     icon: { type: String, default: '🏢' },
@@ -44,9 +45,12 @@ const DepartmentSchema = new Schema<IDepartment>(
     governmentId: { type: String, default: '' },
     contactEmail: { type: String, default: '' },
     adminUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
+
+DepartmentSchema.index({ name: 1, parentDepartmentId: 1 }, { unique: true });
 
 export default mongoose.model<IDepartment>('Department', DepartmentSchema);

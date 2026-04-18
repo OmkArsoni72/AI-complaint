@@ -65,8 +65,8 @@ export default function AdminPage() {
             {data?.category ? ` - ${data.category}` : ''}
           </p>
           <p className="text-xs text-white/60">
-            📍 {data?.location?.area || data?.location || 'Unknown area'}
-            {data?.userName ? ` | 👤 ${data.userName}` : ''}
+            Location: {data?.location?.area || data?.location || 'Unknown area'}
+            {data?.userName ? ` | User: ${data.userName}` : ''}
           </p>
         </div>
         <button
@@ -79,6 +79,8 @@ export default function AdminPage() {
       </motion.div>
     ), { duration: 6000, position: 'top-right' });
   };
+
+  const scopeComplaintsForAdmin = (items: any[]) => items;
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,7 +104,7 @@ export default function AdminPage() {
       if (!res.success) {
         const errMsg = res.message || res.error || 'Failed to create sub-department';
         console.error('[createSubDept] Error:', errMsg);
-        toast.error(`❌ ${errMsg}`, { duration: 5000 });
+        toast.error(errMsg, { duration: 5000 });
         return;
       }
 
@@ -197,11 +199,13 @@ export default function AdminPage() {
 
       if (compRes?.success) {
         const complaintList = compRes.data as any[];
-        setComplaints(complaintList);
+        const scopedComplaints = scopeComplaintsForAdmin(complaintList);
+
+        setComplaints(scopedComplaints);
 
         // Show popup as soon as admin panel opens (latest complaint alert).
-        if (!hasShownInitialPopup.current && complaintList.length > 0) {
-          showComplaintPopup(complaintList[0], 'Latest Complaint Alert');
+        if (!hasShownInitialPopup.current && scopedComplaints.length > 0) {
+          showComplaintPopup(scopedComplaints[0], 'Latest Complaint Alert');
           hasShownInitialPopup.current = true;
         }
       }
@@ -240,7 +244,7 @@ export default function AdminPage() {
     const interval = setInterval(async () => {
       try {
         const res = await api.getAdminComplaints();
-        if (res.success) setComplaints(res.data as any[]);
+        if (res.success) setComplaints(scopeComplaintsForAdmin(res.data as any[]));
       } catch {
         // Silently ignore network errors in background refresh
       }
@@ -260,11 +264,11 @@ export default function AdminPage() {
     const onIncomingComplaint = (data: any) => {
       // Only show notification if complaint is for this department
       if (departmentMatches(data.department)) {
-        showComplaintPopup(data, '🔔 New Complaint');
+        showComplaintPopup(data, 'New Complaint');
 
         // Refresh complaints list
         api.getAdminComplaints().then(res => {
-          if (res.success) setComplaints(res.data as any[]);
+          if (res.success) setComplaints(scopeComplaintsForAdmin(res.data as any[]));
         });
       }
     };
@@ -509,12 +513,12 @@ export default function AdminPage() {
             const unassignedComplaints = complaints.filter((c: any) => !c.assignedSubDepartment && c.status !== 'RESOLVED' && c.status !== 'REJECTED');
 
             const getStatusProgress = (status: string) => {
-              if (status === 'PENDING') return { pct: 10, color: 'bg-warning-400', label: 'Awaiting Start', icon: '⏳' };
-              if (status === 'IN_PROGRESS') return { pct: 55, color: 'bg-primary-400', label: 'Work In Progress', icon: '🔧' };
-              if (status === 'UNDER_REVIEW') return { pct: 80, color: 'bg-violet-400', label: 'Under Review', icon: '🔍' };
-              if (status === 'ESCALATED') return { pct: 75, color: 'bg-danger-400', label: 'Escalated', icon: '🚨' };
-              if (status === 'RESOLVED') return { pct: 100, color: 'bg-success-400', label: 'Resolved', icon: '✅' };
-              return { pct: 0, color: 'bg-white/20', label: status, icon: '•' };
+              if (status === 'PENDING') return { pct: 10, color: 'bg-warning-400', label: 'Awaiting Start', icon: 'WAIT' };
+              if (status === 'IN_PROGRESS') return { pct: 55, color: 'bg-primary-400', label: 'Work In Progress', icon: 'WORK' };
+              if (status === 'UNDER_REVIEW') return { pct: 80, color: 'bg-violet-400', label: 'Under Review', icon: 'REVIEW' };
+              if (status === 'ESCALATED') return { pct: 75, color: 'bg-danger-400', label: 'Escalated', icon: 'ESC' };
+              if (status === 'RESOLVED') return { pct: 100, color: 'bg-success-400', label: 'Resolved', icon: 'DONE' };
+              return { pct: 0, color: 'bg-white/20', label: status, icon: '' };
             };
 
             return (
@@ -708,7 +712,7 @@ export default function AdminPage() {
                                 if (!subDeptId) { toast.error('Sub-department select karein'); return; }
                                 const res = await api.assignSubDepartment(id, subDeptId);
                                 if (!res.success) { toast.error(res.message || 'Failed to assign'); return; }
-                                toast.success('✅ Work assigned!');
+                                toast.success('Work assigned');
                                 // Clear selection for this complaint
                                 setAssignSelections(prev => { const n = {...prev}; delete n[id]; return n; });
                                 const compRes = await api.getAdminComplaints();

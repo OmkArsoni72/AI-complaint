@@ -1,4 +1,4 @@
-# AI Grievance Intelligence System
+# AI Grievance Intelligence System lat
 
 > Smart Sarkari Complaint Resolver — AI-powered smart city governance dashboard with 3-layer RBAC
 
@@ -8,10 +8,10 @@
 - **Backend**: Express.js, TypeScript, Mongoose, JWT Auth
 - **Database**: MongoDB
 
-## 🏗️ Architecture — 3-Layer RBAC
+## 🏗️ Architecture — 3-Layer RBAC-set
 
 ### 👤 Layer 1: Public (Citizen)
-- Submit complaints (text + voice + location)
+- Submit complaints (text + voice + location)   
 - Track complaint status (timeline view)
 - Give feedback (Satisfied / Not Satisfied → auto re-escalation)
 - View notifications

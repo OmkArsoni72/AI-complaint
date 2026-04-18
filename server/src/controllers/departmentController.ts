@@ -22,7 +22,9 @@ export const getDepartments = async (req: AuthRequest, res: Response) => {
 // GET /api/departments/public
 export const getPublicDepartments = async (req: Request, res: Response) => {
   try {
-    const departments = await Department.find({ isActive: true }).select('name categories').sort({ name: 1 });
+    const departments = await Department.find({ isActive: true, parentDepartmentId: null })
+      .select('name categories')
+      .sort({ name: 1 });
     res.json({ success: true, data: departments });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -34,8 +36,16 @@ export const createDepartment = async (req: AuthRequest, res: Response) => {
   try {
     const { name, icon, location, type, jurisdictionLevel, categories, hierarchy } = req.body;
     const normalizedType = typeof type === 'string' ? type.trim() : '';
-    const exists = await Department.findOne({ name });
+    const exists = await Department.findOne({
+      name: { $regex: new RegExp(`^${name}$`, 'i') },
+      parentDepartmentId: null,
+    });
     if (exists) return res.status(400).json({ success: false, error: 'Department already exists' });
+
+    const normalizedCategories = Array.isArray(categories)
+      ? categories.map((c) => (typeof c === 'string' ? c.trim() : '')).filter(Boolean)
+      : [];
+    const fallbackCategories = name ? [name] : [];
 
     const department = await Department.create({
       name,
@@ -43,7 +53,7 @@ export const createDepartment = async (req: AuthRequest, res: Response) => {
       location: location || 'Delhi',
       type: normalizedType || 'General',
       jurisdictionLevel: jurisdictionLevel || 'City',
-      categories: categories || [],
+      categories: normalizedCategories.length > 0 ? normalizedCategories : fallbackCategories,
       hierarchy: hierarchy || [],
     });
 
@@ -91,7 +101,14 @@ export const updateDepartment = async (req: AuthRequest, res: Response) => {
     if (location) deptToUpdate.location = location;
     if (normalizedType) deptToUpdate.type = normalizedType;
     if (jurisdictionLevel) deptToUpdate.jurisdictionLevel = jurisdictionLevel;
-    if (categories) deptToUpdate.categories = categories;
+    if (Array.isArray(categories)) {
+      const normalizedCategories = categories
+        .map((c) => (typeof c === 'string' ? c.trim() : ''))
+        .filter(Boolean);
+      deptToUpdate.categories = normalizedCategories.length > 0
+        ? normalizedCategories
+        : [deptToUpdate.name];
+    }
     if (hierarchy) deptToUpdate.hierarchy = hierarchy;
 
     await deptToUpdate.save();

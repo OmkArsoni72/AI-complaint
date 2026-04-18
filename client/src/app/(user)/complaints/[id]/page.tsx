@@ -69,22 +69,22 @@ export default function ComplaintDetailPage() {
 
   const priorityColor = PRIORITY_COLORS[complaint.priority as keyof typeof PRIORITY_COLORS];
   const statusColor = STATUS_COLORS[complaint.status as keyof typeof STATUS_COLORS];
-  const icon = CATEGORY_ICONS[complaint.category as string] || '📋';
+  const icon = CATEGORY_ICONS[complaint.category as string] || 'GEN';
   const remaining = new Date(complaint.slaDeadline).getTime() - Date.now();
   const hours = Math.max(0, Math.floor(remaining / (1000 * 60 * 60)));
   const mins = Math.max(0, Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60)));
 
   const timeline = [
-    { icon: '📝', label: 'Complaint Submitted', time: new Date(complaint.createdAt).toLocaleString(), done: true },
-    { icon: '🤖', label: `AI classified as ${complaint.category}`, time: 'Auto', done: true },
-    { icon: '📂', label: `Routed to ${complaint.department}`, time: 'Auto', done: true },
-    { icon: '👤', label: `Assigned to ${complaint.assignedOfficerName || 'Pending'}`, time: 'Auto', done: !!complaint.assignedOfficerName },
-    { icon: '🔄', label: 'In Progress', time: complaint.status === 'IN_PROGRESS' || complaint.status === 'RESOLVED' ? 'Active' : 'Pending', done: ['IN_PROGRESS', 'RESOLVED'].includes(complaint.status) },
-    { icon: '✅', label: 'Resolved', time: complaint.resolvedAt ? new Date(complaint.resolvedAt).toLocaleString() : 'Pending', done: complaint.status === 'RESOLVED' },
+    { icon: 'SUB', label: 'Complaint Submitted', time: new Date(complaint.createdAt).toLocaleString(), done: true },
+    { icon: 'CLS', label: `AI classified as ${complaint.category}`, time: 'Auto', done: true },
+    { icon: 'RTE', label: `Routed to ${complaint.department}`, time: 'Auto', done: true },
+    { icon: 'ASG', label: `Assigned to ${complaint.assignedOfficerName || 'Pending'}`, time: 'Auto', done: !!complaint.assignedOfficerName },
+    { icon: 'IP', label: 'In Progress', time: complaint.status === 'IN_PROGRESS' || complaint.status === 'RESOLVED' ? 'Active' : 'Pending', done: ['IN_PROGRESS', 'RESOLVED'].includes(complaint.status) },
+    { icon: 'RES', label: 'Resolved', time: complaint.resolvedAt ? new Date(complaint.resolvedAt).toLocaleString() : 'Pending', done: complaint.status === 'RESOLVED' },
   ];
 
   if (complaint.status === 'ESCALATED') {
-    timeline.push({ icon: '🚨', label: 'Escalated to Higher Authority', time: 'Active', done: true });
+    timeline.push({ icon: 'ESC', label: 'Escalated to Higher Authority', time: 'Active', done: true });
   }
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';

@@ -228,7 +228,7 @@ export const getAIInsights = async (_req: Request, res: Response) => {
           insights.push({
             text: `${t._id} complaints increased by ${increase}% this week compared to last.`,
             type: increase > 30 ? 'warning' : 'info',
-            icon: '📈'
+            icon: 'trend'
           });
         }
       }
@@ -247,7 +247,7 @@ export const getAIInsights = async (_req: Request, res: Response) => {
         insights.push({
           text: `Critical hotspot detected in ${h._id} with ${h.count} active issues.`,
           type: 'danger',
-          icon: '🚨'
+          icon: 'alert'
         });
       }
     });
@@ -262,7 +262,7 @@ export const getAIInsights = async (_req: Request, res: Response) => {
       insights.push({
         text: `Resolution efficiency is maintained with ${resolvedStats} tickets closed this week.`,
         type: 'success',
-        icon: '✅'
+        icon: 'success'
       });
     }
 
@@ -271,7 +271,7 @@ export const getAIInsights = async (_req: Request, res: Response) => {
       insights.push({
         text: 'System processing real-time telemetry. No critical anomalies detected currently.',
         type: 'success',
-        icon: '🛡️'
+        icon: 'shield'
       });
     }
 

@@ -137,13 +137,13 @@ export default function CityMap({ complaints }: { complaints: Complaint[] }) {
                 <Popup>
                   <div className="text-sm min-w-[200px] p-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">{CATEGORY_ICONS[c.category] || '📋'}</span>
+                      <span className="text-lg">{CATEGORY_ICONS[c.category] || 'GEN'}</span>
                       <span className="font-semibold text-white">{c.category}</span>
                     </div>
                     <p className="text-white/70 text-xs mb-2 line-clamp-2">{c.description}</p>
                     <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5">
                       <span className="text-white/50">
-                        📍 {typeof c.location === 'object' ? c.location.area : (c.location || 'Unknown Area')}
+                        Location: {typeof c.location === 'object' ? c.location.area : (c.location || 'Unknown Area')}
                       </span>
                       <span
                         className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${

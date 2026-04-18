@@ -395,7 +395,7 @@ export default function ComplaintTable({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm">{CATEGORY_ICONS[c.category] || '📋'}</span>
+                      <span className="text-sm">{CATEGORY_ICONS[c.category] || 'GEN'}</span>
                       <span className="text-xs text-white/70 truncate max-w-[120px]">
                         {c.category}
                       </span>

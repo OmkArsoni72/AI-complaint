@@ -81,7 +81,7 @@ if (!process.env.VERCEL) {
 
     httpServer.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
-        console.error(`\n❌ Port ${PORT} is already in use.`);
+        console.error(`\nPort ${PORT} is already in use.`);
         console.error(`   Run this to free it:  npx kill-port ${PORT}`);
         console.error(`   Or:  netstat -ano | findstr :${PORT}  then  taskkill /PID <pid> /F\n`);
         process.exit(1);
@@ -91,8 +91,8 @@ if (!process.env.VERCEL) {
     });
 
     httpServer.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-      console.log(`📋 Routes: auth, complaints, users, notifications, admin, officer, departments, analytics, audit, superadmin, sla`);
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log('Routes: auth, complaints, users, notifications, admin, officer, departments, analytics, audit, superadmin, sla');
     });
   });
 } else {

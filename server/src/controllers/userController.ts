@@ -59,20 +59,10 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
     }
 
     if (req.user!.role === 'SUPER_ADMIN') {
-      const headDepts = await Department.find({ parentDepartmentId: null, isActive: true }).select('_id name');
-      const headDeptIds = headDepts.map((d) => d._id);
-      const headDeptNames = headDepts.map((d) => d.name);
-
       query = {
         $or: [
           { role: 'SUPER_ADMIN' },
-          {
-            role: 'ADMIN',
-            $or: [
-              { departmentId: { $in: headDeptIds } },
-              { department: { $in: headDeptNames } },
-            ],
-          },
+          { role: 'ADMIN', createdBy: req.user!.userId },
         ],
       };
     }
@@ -158,6 +148,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
       district: district || '',
       state: state || '',
       pincode: pincode || '',
+      createdBy: req.user!.userId,
     });
 
     // If role is ADMIN, also create an Officer record for handling complaints
