@@ -8,7 +8,7 @@
 - **Backend**: Express.js, TypeScript, Mongoose, JWT Auth
 - **Database**: MongoDB
 
-## 🏗️ Architecture — 3-Layer RBAC
+## 🏗️ Architecture — 3-Layer RBAC-set
 
 ### 👤 Layer 1: Public (Citizen)
 - Submit complaints (text + voice + location)
