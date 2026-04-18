@@ -12,7 +12,7 @@
 
 ### 👤 Layer 1: Public (Citizen)
 - Submit complaints (text + voice + location)
-- Track complaint status (timeline view)
+- Track complaint status (timeline view)   
 - Give feedback (Satisfied / Not Satisfied → auto re-escalation)
 - View notifications
 
