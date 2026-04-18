@@ -22,17 +22,24 @@ interface Complaint {
   createdAt: string;
 }
 
+const STATUS_CONFIG: Record<string, { color: string; bg: string; border: string; label: string }> = {
+  SUBMITTED:   { color: 'text-amber-500',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   label: '🟡 Submitted' },
+  ASSIGNED:    { color: 'text-blue-500',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    label: '🔵 Assigned' },
+  IN_PROGRESS: { color: 'text-indigo-500',  bg: 'bg-indigo-500/10',  border: 'border-indigo-500/20',  label: '🔵 In Progress' },
+  RESOLVED:    { color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', label: '🟢 Resolved' },
+  OVERDUE:     { color: 'text-rose-500',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20',    label: '🔴 Overdue' },
+  ESCALATED:   { color: 'text-rose-600',    bg: 'bg-rose-600/10',    border: 'border-rose-600/20',    label: '🔴 Escalated' },
+};
+
 const getStatusStyle = (status: string) => {
-  switch (status.toLowerCase()) {
-    case 'pending':
-      return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-    case 'resolved':
-      return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-    case 'escalated':
-      return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
-    default:
-      return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
-  }
+  const key = status?.toUpperCase().replace(' ', '_') || 'SUBMITTED';
+  const config = STATUS_CONFIG[key] || STATUS_CONFIG.SUBMITTED;
+  return `${config.bg} ${config.color} ${config.border}`;
+};
+
+const getStatusLabel = (status: string) => {
+  const key = status?.toUpperCase().replace(' ', '_') || 'SUBMITTED';
+  return STATUS_CONFIG[key]?.label || '🟡 Pending';
 };
 
 export default function MyComplaintsPage() {
@@ -193,7 +200,7 @@ export default function MyComplaintsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 mb-4">
                             <span className={`px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest ${getStatusStyle(c.status)}`}>
-                              {c.status}
+                              {getStatusLabel(c.status)}
                             </span>
                             <span className="px-3 py-1.5 rounded-xl bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-500/20 text-[10px] font-black uppercase tracking-widest shadow-sm">
                               {c.category}
