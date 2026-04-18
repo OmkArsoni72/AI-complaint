@@ -20,6 +20,17 @@ const PRIORITY_CONFIG = {
   LOW:    { label: 'LOW',    color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', icon: '', desc: 'Standard processing time' },
 };
 
+type DuplicateCheckResult = {
+  isDuplicate: boolean;
+  similarComplaints: {
+    id: string;
+    title: string;
+    location: any;
+    distance: number;
+    status: string;
+  }[];
+};
+
 export default function NewComplaintPage() {
   const router = useRouter();
   const { token, t } = useAuth();
@@ -105,6 +116,11 @@ export default function NewComplaintPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedData, setSubmittedData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResult | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+  const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
+  const submitSectionRef = useRef<HTMLDivElement | null>(null);
+  const duplicateCardRef = useRef<HTMLDivElement | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -143,6 +159,28 @@ export default function NewComplaintPage() {
     }, 700);
     return () => clearTimeout(timer);
   }, [description, category]);
+
+  useEffect(() => {
+    if (isCheckingDuplicate) {
+      const target = submitSectionRef.current;
+      if (target) {
+        requestAnimationFrame(() => {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
+      return;
+    }
+    if (duplicateResult?.isDuplicate) {
+      const target = duplicateCardRef.current;
+      if (target) {
+        requestAnimationFrame(() => {
+          const rect = target.getBoundingClientRect();
+          const offset = rect.top + window.scrollY - 120;
+          window.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+        });
+      }
+    }
+  }, [isCheckingDuplicate, duplicateResult?.isDuplicate]);
 
   // Image handlers
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -215,18 +253,8 @@ export default function NewComplaintPage() {
   // Submit
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    
-    // Feature: Require photo for HIGH priority
-    if ((aiPriority === 'HIGH' || category === 'HIGH') && images.length === 0) {
-      setError('A photo evidence is strictly required for HIGH priority emergencies.');
-      return;
-    }
-
+  const submitComplaint = async () => {
     setIsSubmitting(true);
-
     try {
       const formData = new FormData();
       formData.append('description', description);
@@ -255,6 +283,71 @@ export default function NewComplaintPage() {
       }
     } catch {
       setError('Connection to backend failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setJoinSuccess(null);
+
+    // Feature: Require photo for HIGH priority
+    if ((aiPriority === 'HIGH' || category === 'HIGH') && images.length === 0) {
+      setError('A photo evidence is strictly required for HIGH priority emergencies.');
+      return;
+    }
+
+    if (isSubmitting || isCheckingDuplicate) return;
+
+    if (coords) {
+      setIsCheckingDuplicate(true);
+      const checkRes = await api.checkDuplicateComplaint({
+        title: description.slice(0, 80),
+        description,
+        lat: coords.lat,
+        lng: coords.lng,
+      });
+      setIsCheckingDuplicate(false);
+
+      if (checkRes.success && checkRes.data?.isDuplicate) {
+        const firstMatch = (checkRes.data.similarComplaints || []).slice(0, 1);
+        setDuplicateResult({
+          isDuplicate: firstMatch.length > 0,
+          similarComplaints: firstMatch,
+        });
+        return;
+      }
+    }
+
+    await submitComplaint();
+  };
+
+  const handleCreateAnyway = async () => {
+    setError(null);
+    setJoinSuccess(null);
+    setDuplicateResult(null);
+    if ((aiPriority === 'HIGH' || category === 'HIGH') && images.length === 0) {
+      setError('A photo evidence is strictly required for HIGH priority emergencies.');
+      return;
+    }
+    if (isSubmitting) return;
+    await submitComplaint();
+  };
+
+  const handleJoinComplaint = async (complaintId: string) => {
+    setError(null);
+    setJoinSuccess(null);
+    setIsSubmitting(true);
+    try {
+      const res = await api.joinComplaint(complaintId);
+      if (!res.success) {
+        setError(res.message || res.error || 'Failed to join complaint');
+        return;
+      }
+      setJoinSuccess('Joined successfully');
+      setDuplicateResult(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -360,6 +453,17 @@ export default function NewComplaintPage() {
             {error}
           </motion.div>
         )}
+
+        {isCheckingDuplicate && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-5 rounded-[2rem] bg-primary-500/10 border border-primary-500/30 text-primary-600 dark:text-primary-400 text-sm font-bold flex items-center gap-3 shadow-lg"
+          >
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Scanning for similar complaints near your location...
+          </motion.div>
+        )}
+
 
         <form onSubmit={handleSubmit} className="space-y-8">
 
@@ -615,13 +719,15 @@ export default function NewComplaintPage() {
           </div>
 
           {/* ── Submit ───────────────────────────────────────────────── */}
-          <div className="pt-4 pb-12">
+          <div ref={submitSectionRef} className="pt-4 pb-12">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isCheckingDuplicate}
               className="w-full py-6 bg-gradient-to-r from-primary-600 via-blue-600 to-indigo-700 hover:from-primary-500 hover:to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black rounded-[2.5rem] transition-all flex items-center justify-center gap-3 text-xl shadow-2xl shadow-primary-500/30 active:scale-[0.98]"
             >
-              {isSubmitting ? (
+              {isCheckingDuplicate ? (
+                <><Loader2 className="w-6 h-6 animate-spin" /> Checking for duplicates...</>
+              ) : isSubmitting ? (
                 <><Loader2 className="w-6 h-6 animate-spin" /> Processing with AI...</>
               ) : (
                 <><Zap className="w-6 h-6 fill-current" /> {t('submit')}</>
@@ -630,6 +736,70 @@ export default function NewComplaintPage() {
             <p className="text-center text-[10px] text-slate-400 dark:text-slate-600 uppercase tracking-widest font-bold mt-6">
               Verified Urban Intelligence Portal • Secure Transmission
             </p>
+
+            {isCheckingDuplicate && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+                className="mt-6 p-5 rounded-[2rem] bg-primary-500/10 border border-primary-500/30 text-primary-600 dark:text-primary-400 text-sm font-bold flex items-center gap-3 shadow-lg"
+              >
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Scanning for similar complaints near your location...
+              </motion.div>
+            )}
+
+            {joinSuccess && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+                className="mt-6 p-5 rounded-[2rem] bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-bold flex items-center gap-3 shadow-lg"
+              >
+                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                {joinSuccess}
+              </motion.div>
+            )}
+
+            {duplicateResult?.isDuplicate && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+                className="mt-6 p-6 rounded-[2.5rem] bg-amber-500/10 border border-amber-500/30 shadow-lg"
+                ref={duplicateCardRef}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <AlertTriangle className="w-5 h-5 text-amber-500" />
+                  <div>
+                    <p className="text-sm font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Complaint already registered nearby</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">You can join an existing complaint instead of creating a new one.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {duplicateResult.similarComplaints.map((c) => (
+                    <div key={c.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-2xl bg-white/60 dark:bg-white/5 border border-amber-500/20">
+                      <div>
+                        <p className="text-sm font-black text-slate-900 dark:text-white">{c.title || 'Similar complaint'}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">{c.distance}m away • {c.status}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleJoinComplaint(c.id)}
+                        className="px-4 py-2 text-[10px] font-black uppercase tracking-widest bg-amber-500 text-white rounded-xl shadow-md hover:bg-amber-600 transition-colors"
+                      >
+                        Join Existing Complaint
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleCreateAnyway}
+                    className="px-5 py-2 text-[10px] font-black uppercase tracking-widest bg-white/70 dark:bg-white/5 border border-amber-500/30 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-white transition-colors"
+                  >
+                    Create New Anyway
+                  </button>
+                </div>
+              </motion.div>
+            )}
           </div>
         </form>
       </div>

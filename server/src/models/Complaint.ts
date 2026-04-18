@@ -49,6 +49,8 @@ export interface IComplaint extends Document {
     area: string;
     district: string;
   };
+  joinedUsers: string[];
+  joinCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,15 +59,14 @@ const ComplaintSchema = new Schema<IComplaint>(
   {
     complaintId: { type: String, unique: true },
     description: { type: String, required: true },
-    rawCategory: { type: String, default: '' },
-    category:    { type: String, required: true },
-    status:      { type: String, default: 'pending' },
-    priority:    { type: String, default: 'MEDIUM' },
-    department:  { type: String, default: 'General Administration' },
+    category: { type: String, required: true },
+    status: { type: String, default: 'pending' },
+    priority: { type: String, default: 'MEDIUM' },
+    department: { type: String, default: 'General Administration' },
     departmentId: { type: Schema.Types.ObjectId, ref: 'Department', default: null },
     slaDeadline: { type: Date },
-    resolvedAt:  { type: Date, default: null },
-    rejectedAt:  { type: Date, default: null },
+    resolvedAt: { type: Date, default: null },
+    rejectedAt: { type: Date, default: null },
     rejectionReason: { type: String, default: '' },
     rejectedBy: { type: String, default: '' },
     notes: [
@@ -76,12 +77,12 @@ const ComplaintSchema = new Schema<IComplaint>(
         attachment: { type: String, default: null }
       }
     ],
-    tags:        { type: [String], default: [] },
-    imageUrls:   { type: [String], default: [] },
-    voiceNoteUrl:{ type: String, default: '' },
+    tags: { type: [String], default: [] },
+    imageUrls: { type: [String], default: [] },
+    voiceNoteUrl: { type: String, default: '' },
     proofFileName: { type: String, default: '' },
-    userId:      { type: String, default: '' },
-    userName:    { type: String, default: 'Anonymous' },
+    userId: { type: String, default: '' },
+    userName: { type: String, default: 'Anonymous' },
     assignedOfficer: { type: String, default: 'Unassigned' },
     assignedOfficerName: { type: String, default: '' },
     assignedTo: { type: String, default: '' },
@@ -102,9 +103,11 @@ const ComplaintSchema = new Schema<IComplaint>(
     location: {
       type: { type: String, enum: ['Point'], default: 'Point' },
       coordinates: { type: [Number], required: true }, // [lng, lat]
-      area:     { type: String, required: true },
+      area: { type: String, required: true },
       district: { type: String, default: 'Delhi' }
     },
+    joinedUsers: { type: [String], default: [] },
+    joinCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
