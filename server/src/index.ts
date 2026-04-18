@@ -67,6 +67,10 @@ app.use('/api/superadmin', superadminRoutes);
 import slaRoutes from './routes/sla';
 app.use('/api/sla', slaRoutes);
 
+// ── WHATSAPP ROUTES ───────────────────────────────────────────────────
+import whatsappRoutes from './routes/whatsapp';
+app.use('/api/whatsapp', whatsappRoutes);
+
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
