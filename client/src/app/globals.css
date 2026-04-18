@@ -1019,6 +1019,233 @@
     .landing-btn { justify-content: center; width: 100%; }
   }
 
+  /* ============================================================
+     LANDING FOOTER
+     ============================================================ */
+  .gov-footer {
+    margin-top: 4.5rem;
+    padding: 2.8rem 4.5vw 2rem;
+    background: radial-gradient(900px 420px at 20% -10%, rgba(14, 116, 144, 0.2), transparent 60%),
+                radial-gradient(700px 380px at 90% 10%, rgba(30, 64, 175, 0.18), transparent 60%),
+                linear-gradient(180deg, #0b1220 0%, #0f172a 55%, #0b1120 100%);
+    color: #e2e8f0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .gov-footer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(120deg, rgba(148, 163, 184, 0.08) 0%, transparent 45%, rgba(14, 116, 144, 0.12) 100%),
+                      radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.12), transparent 35%);
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  .gov-footer-top,
+  .gov-footer-body,
+  .gov-footer-bottom {
+    position: relative;
+    z-index: 1;
+  }
+
+  .gov-footer-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding-bottom: 1.6rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  }
+
+  .gov-footer-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+  }
+
+  .gov-footer-emblem {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    box-shadow: 0 10px 30px rgba(30, 64, 175, 0.25);
+    font-size: 1.1rem;
+  }
+
+  .gov-footer-ministry {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .gov-footer-dept {
+    color: rgba(226, 232, 240, 0.65);
+    font-size: 0.78rem;
+  }
+
+  .gov-footer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .gov-footer-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 2rem;
+    padding: 2rem 0;
+  }
+
+  .gov-footer-col-title {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 1rem;
+    color: #e2e8f0;
+  }
+
+  .gov-footer-col-desc {
+    color: rgba(226, 232, 240, 0.68);
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+
+  .gov-footer-logos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 1.1rem;
+  }
+
+  .gov-footer-logo-pill {
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .gov-footer-logo-pill:hover {
+    transform: translateY(-2px);
+    background: rgba(56, 189, 248, 0.22);
+    border-color: rgba(56, 189, 248, 0.5);
+  }
+
+  .gov-footer-links {
+    list-style: none;
+    display: grid;
+    gap: 0.6rem;
+    padding: 0;
+    margin: 0;
+    font-size: 0.88rem;
+  }
+
+  .gov-footer-links a {
+    color: rgba(226, 232, 240, 0.7);
+    transition: color 0.2s ease, transform 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .gov-footer-links a:hover {
+    color: #38bdf8;
+    transform: translateX(3px);
+  }
+
+  .gov-footer-contact-list {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .gov-footer-contact-item {
+    display: flex;
+    gap: 0.7rem;
+    padding: 0.8rem 0.9rem;
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+
+  .gov-footer-contact-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+
+  .gov-footer-contact-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(226, 232, 240, 0.55);
+  }
+
+  .gov-footer-contact-value {
+    font-size: 0.85rem;
+    color: #e2e8f0;
+  }
+
+  .gov-footer-working-hours {
+    font-size: 0.75rem;
+    color: rgba(226, 232, 240, 0.6);
+    padding-left: 0.2rem;
+  }
+
+  .gov-footer-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.5rem;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: rgba(226, 232, 240, 0.55);
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    padding-top: 1.2rem;
+  }
+
+  .gov-footer-bottom a {
+    color: rgba(226, 232, 240, 0.75);
+  }
+
+  .gov-footer-sep {
+    opacity: 0.4;
+  }
+
+  @media (max-width: 900px) {
+    .gov-footer-top {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .gov-footer-bottom {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .gov-footer {
+      padding: 2.5rem 1.1rem 2rem;
+    }
+  }
+
 /* ============================================================
    LOGIN PAGE — Premium Government Portal Styles
    ============================================================ */
