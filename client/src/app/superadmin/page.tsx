@@ -784,11 +784,19 @@ export default function SuperAdminPage() {
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Department Type</label>
-                <select value={newDept.type} onChange={(e) => setNewDept({ ...newDept, type: e.target.value })} className="input-field text-sm">
+                <input
+                  list="department-type-options"
+                  type="text"
+                  value={newDept.type}
+                  onChange={(e) => setNewDept({ ...newDept, type: e.target.value })}
+                  className="input-field text-sm"
+                  placeholder="e.g. Utilities"
+                />
+                <datalist id="department-type-options">
                   {['Law Enforcement', 'Municipal / Nagar Nigam', 'Electricity', 'Water Supply', 'Public Works (PWD)', 'Cyber / Digital', 'Health', 'Education', 'Transport', 'Revenue / Govt Office', 'Anti-Corruption', 'Social Welfare'].map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                    <option key={t} value={t} />
                   ))}
-                </select>
+                </datalist>
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-white/40 uppercase mb-1">Location</label>

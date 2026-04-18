@@ -100,11 +100,18 @@ const DEPARTMENT_MAP: Record<string, string> = {
  */
 export async function getDepartmentByCategory(category: string) {
   try {
-    // Search for department with this category in their categories array
+    const escaped = category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Search for department with this category in their categories array or exact name match
     const dept = await Department.findOne({
-      categories: category,
-      isActive: true
-    }).select('_id name categories adminUserId');
+      isActive: true,
+      parentDepartmentId: null,
+      $or: [
+        { categories: category },
+        { name: { $regex: new RegExp(`^${escaped}$`, 'i') } },
+        { name: { $regex: new RegExp(`\b${escaped}\b`, 'i') } },
+        { type: { $regex: new RegExp(`\b${escaped}\b`, 'i') } },
+      ],
+    }).select('_id name categories adminUserId type');
     
     if (dept) {
       return {
