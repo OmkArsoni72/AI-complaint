@@ -1,4 +1,4 @@
-# AI Grievance Intelligence System
+# AI Grievance Intelligence System set
 
 > Smart Sarkari Complaint Resolver — AI-powered smart city governance dashboard with 3-layer RBAC
 
