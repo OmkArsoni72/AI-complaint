@@ -73,7 +73,7 @@ export default function AIInsightsPanel({ complaints, stats }: { complaints: any
       dynamicInsights.push({
         text: `${topCategory[0]} is currently the most reported category with ${topCategory[1]} active cases.`,
         type: 'info',
-        icon: '📊',
+        icon: 'STATS',
       });
     }
 
@@ -82,7 +82,7 @@ export default function AIInsightsPanel({ complaints, stats }: { complaints: any
       dynamicInsights.push({
         text: `Urgent: ${stats.escalated} complaints have been escalated. Dispatching priority alerts to department heads.`,
         type: 'danger',
-        icon: '🚨',
+        icon: 'ALERT',
       });
     }
 
@@ -97,7 +97,7 @@ export default function AIInsightsPanel({ complaints, stats }: { complaints: any
       dynamicInsights.push({
         text: `Localized pattern detected in ${topArea[0]}. Recommending field inspection for root cause analysis.`,
         type: 'warning',
-        icon: '📍',
+        icon: 'AREA',
       });
     }
 
@@ -107,7 +107,7 @@ export default function AIInsightsPanel({ complaints, stats }: { complaints: any
       dynamicInsights.push({
         text: `System Efficiency: ${resRate}% of grievances have been successfully resolved this month.`,
         type: 'success',
-        icon: '⚡',
+        icon: 'RATE',
       });
     }
 
@@ -115,7 +115,7 @@ export default function AIInsightsPanel({ complaints, stats }: { complaints: any
     dynamicInsights.push({
       text: 'AI Prediction: Traffic-related issues are expected to rise by 15% due to upcoming public events.',
       type: 'info',
-      icon: '🔮',
+      icon: 'FORECAST',
     });
 
     setVisibleInsights([]);

@@ -8,6 +8,7 @@ export interface ITimelineStep {
 export interface IComplaint extends Document {
   complaintId: string;
   description: string;
+  rawCategory?: string;
   category: string;
   status: string;
   priority: string;
@@ -56,6 +57,7 @@ const ComplaintSchema = new Schema<IComplaint>(
   {
     complaintId: { type: String, unique: true },
     description: { type: String, required: true },
+    rawCategory: { type: String, default: '' },
     category:    { type: String, required: true },
     status:      { type: String, default: 'pending' },
     priority:    { type: String, default: 'MEDIUM' },

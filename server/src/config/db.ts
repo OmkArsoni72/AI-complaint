@@ -5,9 +5,9 @@ const connectDB = async (): Promise<void> => {
     const conn = await mongoose.connect(
       process.env.MONGODB_URI || 'mongodb://localhost:27017/grievance-system'
     );
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+    console.error('MongoDB connection error:', error);
     // In serverless environments, process.exit crashes the whole worker!
   }
 };

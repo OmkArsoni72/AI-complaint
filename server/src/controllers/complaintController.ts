@@ -1,21 +1,47 @@
-import axios from "axios";
 import { Request, Response } from 'express';
 import Complaint from '../models/Complaint';
 import Officer from '../models/Officer';
 import Escalation from '../models/Escalation';
 import AuditLog from '../models/AuditLog';
 import Department from '../models/Department';
+import Notification from '../models/Notification';
 import { emitToDepartment, emitToUser } from '../socket';
 import {
-  getDepartmentByCategory,
   calculateSLA,
   generateComplaintId,
+  detectPriority,
 } from '../services/aiEngine';
+import { fetchAiCategory } from '../services/aiService';
+import { mapComplaintCategory } from '../services/mappingService';
 import { AuthRequest } from '../middleware/auth';
 
 type OfficerScope =
   | { kind: 'OFFICER'; officerId: string; officerName: string }
   | { kind: 'SUB_DEPT'; departmentId?: string | null; departmentName?: string | null };
+
+const notifyUser = async (userId: string | undefined, payload: { title: string; message: string; type: 'ASSIGNMENT' | 'STATUS_UPDATE' | 'CRISIS' | 'ESCALATION' | 'GENERAL'; relatedId?: string }) => {
+  if (!userId) return;
+  const note = await Notification.create({
+    userId,
+    title: payload.title,
+    message: payload.message,
+    type: payload.type,
+    relatedId: payload.relatedId,
+  });
+  emitToUser(userId, 'complaint_notification', payload);
+  emitToUser(userId, 'notification_created', note);
+};
+
+const findHeadAdminId = async (complaint: any) => {
+  const deptId = complaint?.assignedSubDepartment || complaint?.departmentId || null;
+  if (!deptId) return null;
+  const dept = await Department.findById(deptId).select('parentDepartmentId adminUserId name');
+  if (dept?.parentDepartmentId) {
+    const parent = await Department.findById(dept.parentDepartmentId).select('adminUserId name');
+    return parent?.adminUserId?.toString() || null;
+  }
+  return dept?.adminUserId?.toString() || null;
+};
 
 async function resolveOfficerScope(req: AuthRequest, res: Response): Promise<OfficerScope | null> {
   if (!req.user) {
@@ -24,10 +50,17 @@ async function resolveOfficerScope(req: AuthRequest, res: Response): Promise<Off
   }
 
   if (req.user.role === 'OFFICER') {
-    const officer = await Officer.findOne({ userId: req.user.userId, isActive: true }).select('_id name');
+    const officer = await Officer.findOne({ userId: req.user.userId, isActive: true }).select('_id name department departmentId');
     if (!officer) {
       res.status(404).json({ success: false, error: 'Officer profile not found' });
       return null;
+    }
+    const deptId = officer.departmentId ? officer.departmentId.toString() : null;
+    if (deptId) {
+      const dept = await Department.findById(deptId).select('parentDepartmentId name');
+      if (dept?.parentDepartmentId) {
+        return { kind: 'SUB_DEPT', departmentId: deptId, departmentName: dept.name };
+      }
     }
     return { kind: 'OFFICER', officerId: officer._id.toString(), officerName: officer.name };
   }
@@ -78,51 +111,14 @@ export const createComplaint = async (req: Request, res: Response) => {
   try {
     const { description, location, userId, userName } = req.body;
 
-    // 🔥 AI CALL (PYTHON MODEL)
-    const aiRes = await axios.post("http://127.0.0.1:8000/predict", {
-      text: description,
-    });
+    const aiResult = await fetchAiCategory(description);
+    const activeDepartments = await Department.find({ isActive: true, parentDepartmentId: null }).select('name type categories');
+    const mapped = mapComplaintCategory(description, aiResult.rawCategory || null, activeDepartments as any);
+    const priority = detectPriority(description);
+    const slaDeadline = calculateSLA(mapped.category, priority);
 
-    const category = aiRes.data.category;
-
-    // 🔥 TEMP PRIORITY (later AI bana sakte ho)
-    const priority =
-      description.toLowerCase().includes("urgent") ||
-      description.toLowerCase().includes("accident") ||
-      description.toLowerCase().includes("emergency")
-        ? "HIGH"
-        : "MEDIUM";
-
-    const aiConfidence = 0.9;
-
-    // 🔥 DEPARTMENT ROUTING
-    const deptInfo = await getDepartmentByCategory(category);
-
-    let departmentId = deptInfo._id || null;
-    let departmentName = deptInfo.name;
-
-    if (!departmentId) {
-      const deptDoc = await Department.findOne({
-        name: deptInfo.name,
-        isActive: true
-      }).select('_id name');
-
-      if (deptDoc) {
-        departmentId = deptDoc._id;
-      } else {
-        const anyDept = await Department.findOne({
-          categories: category,
-          isActive: true
-        }).select('_id name');
-
-        if (anyDept) {
-          departmentId = anyDept._id;
-          departmentName = anyDept.name;
-        }
-      }
-    }
-
-    const slaDeadline = calculateSLA(category, priority);
+    const departmentName = mapped.department;
+    const departmentId = mapped.departmentId || null;
     const complaintId = generateComplaintId();
 
     // 🔥 OFFICER AUTO ASSIGN
@@ -135,7 +131,8 @@ export const createComplaint = async (req: Request, res: Response) => {
     const complaint = await Complaint.create({
       complaintId,
       description,
-      category,
+      rawCategory: mapped.rawCategory || '',
+      category: mapped.category,
       priority,
       status: 'PENDING',
       department: departmentName,
@@ -143,7 +140,6 @@ export const createComplaint = async (req: Request, res: Response) => {
       location,
       assignedOfficer: officer?._id || null,
       assignedOfficerName: officer?.name || null,
-      confidence: aiConfidence,
       slaDeadline,
       userId: userId || null,
       userName: userName || 'Anonymous',
@@ -163,13 +159,13 @@ export const createComplaint = async (req: Request, res: Response) => {
       role: 'PUBLIC',
       targetType: 'complaint',
       targetId: complaintId,
-      details: `AI routed complaint → ${category} → ${departmentName}`,
+      details: `AI routed complaint → ${mapped.category} → ${departmentName}`,
     });
 
     // 🔥 REALTIME SOCKET
     emitToDepartment(departmentName, 'new_complaint', {
       complaintId,
-      category,
+      category: mapped.category,
       priority,
       userName,
       department: departmentName,
@@ -298,6 +294,30 @@ export const updateOfficerComplaintStatus = async (req: AuthRequest, res: Respon
 
     await complaint.save();
 
+    const headAdminId = await findHeadAdminId(complaint);
+    if (headAdminId) {
+      await notifyUser(headAdminId, {
+        title: 'Sub-Department Status Update',
+        message: `Complaint #${complaint.complaintId} status updated to ${status}.`,
+        type: 'STATUS_UPDATE',
+        relatedId: complaint.complaintId,
+      });
+    }
+
+    if (complaint.userId) {
+      await notifyUser(complaint.userId, {
+        title: 'Complaint Status Updated',
+        message: `Your complaint #${complaint.complaintId} status is now ${status}.`,
+        type: 'STATUS_UPDATE',
+        relatedId: complaint.complaintId,
+      });
+      emitToUser(complaint.userId, 'complaint_updated', complaint);
+    }
+
+    if (complaint.department) {
+      emitToDepartment(complaint.department, 'complaint_updated', complaint);
+    }
+
     await AuditLog.create({
       action: 'OFFICER_STATUS_UPDATE',
       performedBy: req.user?.userId || 'system',
@@ -355,6 +375,30 @@ export const addOfficerComplaintRemark = async (req: AuthRequest, res: Response)
     });
     complaint.lastRemark = text.trim();
     await complaint.save();
+
+    const headAdminId = await findHeadAdminId(complaint);
+    if (headAdminId) {
+      await notifyUser(headAdminId, {
+        title: 'Sub-Department Remark Added',
+        message: `Complaint #${complaint.complaintId} updated with a new remark.`,
+        type: 'STATUS_UPDATE',
+        relatedId: complaint.complaintId,
+      });
+    }
+
+    if (complaint.userId) {
+      await notifyUser(complaint.userId, {
+        title: 'Complaint Updated',
+        message: `A new remark was added to complaint #${complaint.complaintId}.`,
+        type: 'STATUS_UPDATE',
+        relatedId: complaint.complaintId,
+      });
+      emitToUser(complaint.userId, 'complaint_updated', complaint);
+    }
+
+    if (complaint.department) {
+      emitToDepartment(complaint.department, 'complaint_updated', complaint);
+    }
 
     await AuditLog.create({
       action: 'OFFICER_REMARK',

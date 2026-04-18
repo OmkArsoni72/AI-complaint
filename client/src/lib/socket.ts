@@ -23,15 +23,15 @@ export const getSocket = (token?: string | null) => {
 
     // Log connection events
     socket.on('connect', () => {
-      console.log('✅ Socket.io connected:', socket?.id);
+      console.log('Socket.io connected:', socket?.id);
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('❌ Socket.io disconnected:', reason);
+      console.log('Socket.io disconnected:', reason);
     });
 
     socket.on('connect_error', (error) => {
-      console.warn('⚠️ Socket.io connection warning:', error?.message || error);
+      console.warn('Socket.io connection warning:', error?.message || error);
     });
   }
 

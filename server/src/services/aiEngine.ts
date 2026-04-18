@@ -24,7 +24,7 @@ const CATEGORY_RULES: { keywords: string[]; category: string }[] = [
     category: 'Sanitation' 
   },
   { 
-    keywords: ['safety', 'crime', 'police', 'robbery', 'assault', 'theft', 'harassment', 'danger', 'police', 'chor', 'shakti', 'khatra'], 
+    keywords: ['safety', 'crime', 'police', 'robbery', 'assault', 'theft', 'harassment', 'danger', 'murder', 'homicide', 'kill', 'killed', 'stabbing', 'shooting', 'kidnap', 'abduction', 'chor', 'shakti', 'khatra'], 
     category: 'Public Safety' 
   },
   { 
@@ -64,6 +64,7 @@ export function detectCategory(description: string): { category: string; confide
 const HIGH_PRIORITY_KEYWORDS = [
   'fire', 'accident', 'collapse', 'emergency', 'urgent', 'danger', 'death', 'dead',
   'injured', 'serious', 'critical', 'explosion', 'toxic', 'gas leak', 'flooding',
+  'murder', 'homicide', 'kill', 'killed', 'stabbing', 'shooting', 'gun', 'weapon',
   'aag', 'durghatna', 'emargency', 'khatra', 'maut', 'ghayal', 'baadh'
 ];
 const MEDIUM_PRIORITY_KEYWORDS = [

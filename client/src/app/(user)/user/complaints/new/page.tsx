@@ -15,9 +15,9 @@ import { api } from '@/lib/api';
 const DEFAULT_CATEGORIES: string[] = [];
 
 const PRIORITY_CONFIG = {
-  HIGH:   { label: 'HIGH',   color: 'text-rose-400',  bg: 'bg-rose-500/10',  border: 'border-rose-500/30',   icon: '🔴', desc: 'Immediate action required' },
-  MEDIUM: { label: 'MEDIUM', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30',  icon: '🟡', desc: 'Action within 24 hours' },
-  LOW:    { label: 'LOW',    color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', icon: '🟢', desc: 'Standard processing time' },
+  HIGH:   { label: 'HIGH',   color: 'text-rose-400',  bg: 'bg-rose-500/10',  border: 'border-rose-500/30',   icon: '', desc: 'Immediate action required' },
+  MEDIUM: { label: 'MEDIUM', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30',  icon: '', desc: 'Action within 24 hours' },
+  LOW:    { label: 'LOW',    color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', icon: '', desc: 'Standard processing time' },
 };
 
 export default function NewComplaintPage() {
@@ -89,6 +89,7 @@ export default function NewComplaintPage() {
   const [aiTags, setAiTags] = useState<string[]>([]);
   const [aiDepartment, setAiDepartment] = useState('');
   const [aiSlaDeadline, setAiSlaDeadline] = useState<string | null>(null);
+  const [aiNoIssue, setAiNoIssue] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisVisible, setAnalysisVisible] = useState(false);
 
@@ -116,6 +117,7 @@ export default function NewComplaintPage() {
       setAiTags([]);
       setAiDepartment('');
       setAiSlaDeadline(null);
+      setAiNoIssue(false);
       return;
     }
     setIsAnalyzing(true);
@@ -128,6 +130,7 @@ export default function NewComplaintPage() {
           setAiTags(Array.isArray(res.data.tags) ? res.data.tags : []);
           setAiDepartment(res.data.department || '');
           setAiSlaDeadline(res.data.slaDeadline || null);
+          setAiNoIssue(Boolean(res.data.noIssue));
           setAnalysisVisible(true);
         } else {
           setAnalysisVisible(false);
@@ -293,7 +296,9 @@ export default function NewComplaintPage() {
             <div className="flex justify-between items-center text-sm">
               <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Priority</span>
               <span className={`font-black ${PRIORITY_CONFIG[submittedData.priority as 'HIGH'|'MEDIUM'|'LOW']?.color.replace('-400', '-600') || 'text-slate-900 dark:text-white'}`}>
-                {PRIORITY_CONFIG[submittedData.priority as 'HIGH'|'MEDIUM'|'LOW']?.icon} {submittedData.priority}
+                {PRIORITY_CONFIG[submittedData.priority as 'HIGH'|'MEDIUM'|'LOW']?.icon
+                  ? `${PRIORITY_CONFIG[submittedData.priority as 'HIGH'|'MEDIUM'|'LOW']?.icon} ${submittedData.priority}`
+                  : submittedData.priority}
               </span>
             </div>
             <div className="flex justify-between items-center text-sm">
@@ -471,7 +476,7 @@ export default function NewComplaintPage() {
                   onChange={e => setCategory(e.target.value)}
                   className="w-full bg-transparent dark:text-white text-slate-900 font-bold focus:outline-none appearance-none cursor-pointer pr-10 py-2 border-b-2 border-slate-100 dark:border-white/5 transition-colors focus:border-primary-500/50"
                 >
-                  <option value="" className="dark:bg-slate-900 bg-white">⚡ Auto-detect (AI)</option>
+                  <option value="" className="dark:bg-slate-900 bg-white">Auto-detect (AI)</option>
                   {dynamicCategories.map(c => (
                     <option key={c} value={c} className="dark:bg-slate-900 bg-white">{c}</option>
                   ))}

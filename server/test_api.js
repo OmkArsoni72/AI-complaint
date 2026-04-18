@@ -20,7 +20,7 @@ async function testAPI() {
   }
   
   const token = loginData.data.token;
-  console.log('✅ Logged in as:', loginData.data.user.name, '| Role:', loginData.data.user.role);
+  console.log(' Logged in as:', loginData.data.user.name, '| Role:', loginData.data.user.role);
   
   // Hit the admin overview API
   const res = await fetch('http://localhost:5000/api/superadmin/admins', {

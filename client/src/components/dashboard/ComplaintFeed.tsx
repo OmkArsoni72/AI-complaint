@@ -77,7 +77,7 @@ export default function ComplaintFeed({ complaints }: { complaints: Complaint[] 
             >
               <div className="flex items-start gap-3">
                 <div className="text-lg flex-shrink-0 mt-0.5">
-                  {CATEGORY_ICONS[c.category] || '📋'}
+                  {CATEGORY_ICONS[c.category] || 'GEN'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">

@@ -37,13 +37,13 @@ export const STATUS_COLORS = {
 } as const;
 
 export const CATEGORY_ICONS: Record<string, string> = {
-  'Traffic & Transport': '🚗',
-  'Water Supply': '💧',
-  'Electricity': '⚡',
-  'Sanitation': '🗑️',
-  'Road & Infrastructure': '🛣️',
-  'Public Safety': '🛡️',
-  'General': '📋',
+  'Traffic & Transport': 'TRF',
+  'Water Supply': 'WTR',
+  'Electricity': 'ELEC',
+  'Sanitation': 'SAN',
+  'Road & Infrastructure': 'ROAD',
+  'Public Safety': 'SAFE',
+  'General': 'GEN',
 };
 
 export const DEPARTMENT_COLORS: Record<string, string> = {

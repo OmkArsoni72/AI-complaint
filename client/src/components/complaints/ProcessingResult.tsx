@@ -47,14 +47,14 @@ function SLATimer({ deadline }: { deadline: string }) {
 
 export default function ProcessingResult({ data }: { data: ComplaintData }) {
   const priorityColor = PRIORITY_COLORS[data.priority];
-  const icon = CATEGORY_ICONS[data.category] || '📋';
+  const icon = CATEGORY_ICONS[data.category] || 'GEN';
 
   const steps = [
-    { icon: '📝', label: 'Complaint Received', time: new Date(data.createdAt).toLocaleTimeString(), done: true },
-    { icon: '🤖', label: 'AI Analysis Complete', time: 'Auto', done: true },
-    { icon: '📂', label: `Routed to ${data.department}`, time: 'Auto', done: true },
-    { icon: '👤', label: `Assigned to ${data.assignedOfficerName || 'Pending'}`, time: 'Auto', done: !!data.assignedOfficerName },
-    { icon: '✅', label: 'Resolution', time: 'Pending', done: data.status === 'RESOLVED' },
+    { icon: 'REC', label: 'Complaint Received', time: new Date(data.createdAt).toLocaleTimeString(), done: true },
+    { icon: 'ANL', label: 'Analysis Complete', time: 'Auto', done: true },
+    { icon: 'ROUTE', label: `Routed to ${data.department}`, time: 'Auto', done: true },
+    { icon: 'ASSIGN', label: `Assigned to ${data.assignedOfficerName || 'Pending'}`, time: 'Auto', done: !!data.assignedOfficerName },
+    { icon: 'RES', label: 'Resolution', time: 'Pending', done: data.status === 'RESOLVED' },
   ];
 
   return (

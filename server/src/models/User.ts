@@ -27,6 +27,7 @@ export interface IUser extends Document {
   gender: string;
   dob: string;
   bio: string;
+  createdBy: mongoose.Types.ObjectId | null;
   createdAt: Date;
 }
 
@@ -56,6 +57,7 @@ const UserSchema = new Schema<IUser>(
     gender: { type: String, default: '' },
     dob: { type: String, default: '' },
     bio: { type: String, default: '' },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true }
 );

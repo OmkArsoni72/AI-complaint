@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/lib/auth';
+import { onEvent } from '@/lib/socket';
 import { api } from '@/lib/api';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
@@ -28,7 +29,7 @@ const PRIORITY_CONFIG: Record<string, { color: string; bg: string }> = {
 };
 
 export default function SubDepartmentDashboard() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, token } = useAuth();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
   
@@ -49,8 +50,20 @@ export default function SubDepartmentDashboard() {
     fetchData();
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, [user, refreshKey]);
+
+    const unSubUpdated = onEvent('complaint_updated', () => {
+      fetchData();
+    }, token);
+    const unSubNotify = onEvent('complaint_notification', () => {
+      fetchData();
+    }, token);
+
+    return () => {
+      clearInterval(interval);
+      unSubUpdated();
+      unSubNotify();
+    };
+  }, [user, refreshKey, token]);
 
   const stats = useMemo(() => {
     return complaints.reduce(
@@ -77,7 +90,7 @@ export default function SubDepartmentDashboard() {
     const id = c.complaintId || c._id;
     const res = await api.updateOfficerComplaintStatus(id, 'IN_PROGRESS', 'Complaint accepted, work initiated');
     if (!res.success) return toast.error(res.message || 'Failed');
-    toast.success('✅ Complaint accepted! Work started.');
+    toast.success('Complaint accepted. Work started.');
     setRefreshKey(k => k + 1);
   };
 
@@ -91,7 +104,7 @@ export default function SubDepartmentDashboard() {
       setIsUpdating(false);
       return;
     }
-    toast.success(updateStatus === 'RESOLVED' ? '🎉 Complaint resolved!' : '📋 Status updated!');
+    toast.success(updateStatus === 'RESOLVED' ? 'Complaint resolved.' : 'Status updated.');
     setSelectedComplaint(null);
     setRemarks('');
     setProofFileName('');
@@ -109,7 +122,7 @@ export default function SubDepartmentDashboard() {
       setIsUpdating(false);
       return;
     }
-    toast.success('⚠️ Escalated to Admin successfully');
+    toast.success('Escalated to admin successfully.');
     setSelectedComplaint(null);
     setRemarks('');
     setIsUpdating(false);
@@ -262,23 +275,23 @@ export default function SubDepartmentDashboard() {
                     </span>
                     {/* Clean Location */}
                     <span className="text-[12px] text-white/50 font-medium">
-                      📍 {c.location?.area || 'Unknown Location'}
+                      {c.location?.area || 'Unknown Location'}
                     </span>
                     {/* Clean Category */}
                     <span className="text-[12px] text-white/40">
-                      📂 {c.category}
+                      {c.category}
                     </span>
                     
                     {/* SLA (Only show if not resolved) */}
                     {c.status !== 'RESOLVED' && slaRemaining !== null && (
                       <span className={`ml-auto text-[11px] font-black uppercase px-2 py-1 rounded ${isOverdue ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-500/20 text-slate-300'}`}>
-                        {isOverdue ? '⚠️ Overdue' : `⏱️ ${slaHours} Hrs Left`}
+                        {isOverdue ? 'Overdue' : `${slaHours} Hrs Left`}
                       </span>
                     )}
 
                     {c.status === 'RESOLVED' && (
                        <span className="ml-auto text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
-                         ✅ Completed on {new Date(c.resolvedAt || c.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                         Completed on {new Date(c.resolvedAt || c.updatedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                        </span>
                     )}
                   </div>
@@ -370,10 +383,10 @@ export default function SubDepartmentDashboard() {
                       onChange={(e) => setUpdateStatus(e.target.value)}
                       className="input-field text-sm"
                     >
-                      <option value="IN_PROGRESS">🔧 In Progress — Work initiated</option>
-                      <option value="UNDER_REVIEW">🔍 Under Review — Awaiting verification</option>
-                      <option value="RESOLVED">✅ Resolved — Issue fixed</option>
-                      <option value="ESCALATED">🚨 Escalated — Needs higher authority</option>
+                      <option value="IN_PROGRESS">In Progress - Work initiated</option>
+                      <option value="UNDER_REVIEW">Under Review - Awaiting verification</option>
+                      <option value="RESOLVED">Resolved - Issue fixed</option>
+                      <option value="ESCALATED">Escalated - Needs higher authority</option>
                     </select>
                   </div>
 
