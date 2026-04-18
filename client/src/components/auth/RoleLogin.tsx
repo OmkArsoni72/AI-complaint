@@ -190,32 +190,60 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, portalGua
                 {mode === 'login' ? 'to your account' : 'for a new account'}
               </span>
             </h2>
-            {role === 'PUBLIC' && (
-              <div className="mt-3 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMode('login')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    mode === 'login'
-                      ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30'
-                      : 'text-white/40 hover:text-white/70 hover:bg-white/5'
-                  }`}
-                >
-                  Login
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode('register')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    mode === 'register'
-                      ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30'
-                      : 'text-white/40 hover:text-white/70 hover:bg-white/5'
-                  }`}
-                >
-                  Register
-                </button>
+            <div className="mt-3 flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                {role === 'PUBLIC' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setMode('login')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        mode === 'login'
+                          ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30'
+                          : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+                      }`}
+                    >
+                      Login
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMode('register')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        mode === 'register'
+                          ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30'
+                          : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+                      }`}
+                    >
+                      Register
+                    </button>
+                  </>
+                )}
               </div>
-            )}
+              
+              {/* 🚀 HACKATHON QUICK-FILL BUTTON */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (role === 'ADMIN') {
+                    setEmail('omkarsoni@gmail.com');
+                    setPassword('omkar123');
+                  } else if (role === 'SUPER_ADMIN') {
+                    setEmail('superadmin@delhi.gov.in');
+                    setPassword('super123');
+                  } else if (role === 'OFFICER') {
+                    setEmail('officer@zone1.in');
+                    setPassword('officer123');
+                  } else {
+                    setEmail('citizen@test.com');
+                    setPassword('password123');
+                  }
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-all uppercase tracking-tight"
+              >
+                <LogIn className="w-3 h-3" />
+                Demo Fill
+              </button>
+            </div>
           </div>
 
           <AnimatePresence>
@@ -225,6 +253,7 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, portalGua
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 className="login-error"
+                style={{ marginBottom: '1rem' }}
               >
                 {error}
               </motion.div>
@@ -239,6 +268,7 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, portalGua
                     <User className="login-input-icon" />
                     <input
                       type="text"
+                      autoComplete="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="login-input"
@@ -252,6 +282,7 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, portalGua
                     <Phone className="login-input-icon" />
                     <input
                       type="text"
+                      autoComplete="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       className="login-input"
@@ -266,6 +297,7 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, portalGua
                 <Mail className="login-input-icon" />
                 <input
                   type="email"
+                  autoComplete="username email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="login-input"
@@ -280,6 +312,7 @@ export default function RoleLogin({ role, title, subtitle, redirectTo, portalGua
                 <Lock className="login-input-icon" />
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="login-input login-input-password"

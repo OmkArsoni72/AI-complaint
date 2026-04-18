@@ -6,6 +6,22 @@ const SOCKET_URL = API_URL.replace(/\/api\/?$/, '');
 let socket: Socket | undefined;
 
 export const getSocket = (token?: string | null) => {
+  // 🟢 VERCEL FIX: Socket.io does not work on Vercel Serverless. 
+  // Disable it in production to avoid continuous 404 errors.
+  const isVercel = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  
+  if (isVercel) {
+    console.warn('Socket.io is disabled on Vercel (Production) to prevent 404 polling errors.');
+    return {
+      on: () => {},
+      off: () => {},
+      emit: () => {},
+      connected: false,
+      connect: () => {},
+      disconnect: () => {},
+    } as any;
+  }
+
   if (!socket) {
     socket = io(SOCKET_URL || undefined, {
       path: '/socket.io',
