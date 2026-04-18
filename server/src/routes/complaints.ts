@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -8,11 +9,12 @@ import Complaint from '../models/Complaint';
 import Notification from '../models/Notification';
 import Department from '../models/Department';
 import User from '../models/User';
-import { detectCategory, detectPriority, getDepartment, calculateSLA, generateTags, generateComplaintId } from '../services/aiEngine';
+import { detectPriority, getDepartmentByCategory, calculateSLA, generateTags, generateComplaintId } from '../services/aiEngine';
 import { emitEvent, emitToDepartment, emitToUser } from '../socket';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'grievance-system-secret-key-2024';
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000/predict';
 
 // ── Multer Storage Config ────────────────────────────────────────────────
 const isVercel = process.env.VERCEL === '1';
@@ -61,6 +63,49 @@ function getUserFromToken(req: Request): { userId: string; userName: string } | 
     return null;
   }
 }
+
+async function analyzeComplaint(description: string, categoryOverride?: string) {
+  let category = typeof categoryOverride === 'string' ? categoryOverride.trim() : '';
+
+  if (!category) {
+    const aiRes = await axios.post(AI_SERVICE_URL, { text: description });
+    category = typeof aiRes?.data?.category === 'string' ? aiRes.data.category.trim() : '';
+  }
+
+  if (!category) category = 'General';
+
+  const priority = detectPriority(description);
+  const deptInfo = await getDepartmentByCategory(category);
+
+  const department = deptInfo._id ? deptInfo.name : '';
+  const departmentId = deptInfo._id || null;
+  const slaDeadline = calculateSLA(category, priority);
+  const tags = generateTags(description, category);
+
+  return {
+    category,
+    priority,
+    department,
+    departmentId,
+    slaDeadline,
+    tags,
+  };
+}
+
+// ── POST /api/complaints/analyze — AI preview for citizen ─────────────
+router.post('/analyze', async (req: Request, res: Response) => {
+  try {
+    const { description, category } = req.body || {};
+    if (!description || typeof description !== 'string') {
+      return res.status(400).json({ success: false, error: 'description is required' });
+    }
+
+    const analysis = await analyzeComplaint(description, category);
+    res.json({ success: true, data: analysis });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // ── GET /api/complaints/nearby — Find complaints within 2km ───────────────
 router.get('/nearby', async (req: Request, res: Response) => {
@@ -145,49 +190,14 @@ router.post(
             ? req.body.district
             : 'Delhi';
 
-      // ── AI Engine ────────────────────────────────────────────────────
-      if (!category || category === 'General') {
-        category = detectCategory(description).category;
-      }
-      const priority = detectPriority(description);
-      const escapedCategory = category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-      // Step 1: Try matching department by category
-      let deptDoc: any = await Department.findOne({
-        isActive: true,
-        parentDepartmentId: null,
-        categories: { $regex: new RegExp(`^${escapedCategory}$`, 'i') },
-      }).select('name');
-
-      // Step 2: If no category match, try matching by department name keywords
-      if (!deptDoc) {
-        const CATEGORY_TO_DEPT_KEYWORDS: Record<string, string[]> = {
-          'Water Supply': ['water', 'jal'],
-          'Electricity': ['electric', 'power', 'bses', 'tpddl'],
-          'Traffic & Transport': ['traffic', 'transport', 'police'],
-          'Sanitation': ['municipal', 'sanitation', 'corporation'],
-          'Public Safety': ['police', 'law', 'enforcement', 'safety'],
-          'Environment': ['environment', 'pollution'],
-          'Health': ['health'],
-          'Education': ['education'],
-          'Infrastructure': ['pwd', 'public works', 'infrastructure'],
-          'General': ['general', 'admin', 'govt', 'government'],
-        };
-        const keywords = CATEGORY_TO_DEPT_KEYWORDS[category] || [];
-        for (const kw of keywords) {
-          deptDoc = await Department.findOne({
-            isActive: true,
-            parentDepartmentId: null,
-            name: { $regex: new RegExp(kw, 'i') },
-          }).select('name');
-          if (deptDoc) break;
-        }
-      }
-
-      const department = deptDoc?.name || getDepartment(category);
-      const departmentId = deptDoc?._id || null;
-      const slaDeadline = calculateSLA(category, priority);
-      const tags = generateTags(description, category);
+      // ── AI Engine (Real) ─────────────────────────────────────────────
+      const analysis = await analyzeComplaint(description, category);
+      category = analysis.category;
+      const priority = analysis.priority;
+      const department = analysis.department;
+      const departmentId = analysis.departmentId;
+      const slaDeadline = analysis.slaDeadline;
+      const tags = analysis.tags;
 
       // ── Duplicate Detection (50m Radius & Same Category) ─────────────
       const duplicateFound = await Complaint.findOne({
@@ -218,12 +228,13 @@ router.post(
       // ── Extract user identity from JWT (if logged in) ────────────────
       const userInfo = getUserFromToken(req);
 
+      const normalizedDepartment = department && department.trim() ? department : 'Unassigned';
       const complaint = await Complaint.create({
         complaintId: generateComplaintId(),
         description,
         category,
         priority,
-        department,
+        department: normalizedDepartment,
         departmentId,
         slaDeadline,
         tags,
@@ -252,8 +263,11 @@ router.post(
       }).select('_id');
 
       const adminIds = new Set<string>(deptAdmins.map((a) => a._id.toString()));
-      if (deptDoc?.adminUserId) {
-        adminIds.add(deptDoc.adminUserId.toString());
+      const deptAdmin = departmentId
+        ? await Department.findById(departmentId).select('adminUserId')
+        : await Department.findOne({ name: { $regex: new RegExp(`^${department}$`, 'i') }, isActive: true }).select('adminUserId');
+      if (deptAdmin?.adminUserId) {
+        adminIds.add(deptAdmin.adminUserId.toString());
       }
 
       const adminNotificationPayload = {

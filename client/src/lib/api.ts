@@ -150,6 +150,13 @@ export const api = {
     });
   },
 
+  analyzeComplaint: async (description: string, category?: string) => {
+    return await fetchApi<any>('/complaints/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ description, category }),
+    });
+  },
+
   updateComplaint: async (id: string, data: any) => {
     return await fetchApi<any>(`/complaints/${id}`, {
       method: 'PATCH',
