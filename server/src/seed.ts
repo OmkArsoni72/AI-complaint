@@ -21,7 +21,7 @@ dotenv.config();
 const departments = [
   {
     name: 'Delhi Police',
-    icon: '🚓',
+    icon: 'POL',
     categories: ['Public Safety', 'Crime', 'Harassment'],
     hierarchy: [
       { name: 'Constable', level: 1 },
@@ -36,7 +36,7 @@ const departments = [
   },
   {
     name: 'Municipal Corporation (MCD)',
-    icon: '🏙️',
+    icon: 'MUN',
     categories: ['Sanitation', 'Road & Infrastructure'],
     hierarchy: [
       { name: 'Ward Worker', level: 1 },
@@ -48,7 +48,7 @@ const departments = [
   },
   {
     name: 'Electricity Department',
-    icon: '⚡',
+    icon: 'ELEC',
     categories: ['Electricity'],
     hierarchy: [
       { name: 'Lineman', level: 1 },
@@ -112,11 +112,11 @@ async function seed() {
     AuditLog.deleteMany({}),
     Department.deleteMany({}),
   ]);
-  console.log('🗑️  Cleared all collections');
+  console.log('Cleared all collections');
 
   // Seed Departments
   const createdDepartments = await Department.insertMany(departments);
-  console.log(`🏢 Seeded ${createdDepartments.length} departments`);
+  console.log(`Seeded ${createdDepartments.length} departments`);
 
   // Seed Officers
   const createdOfficers = await Officer.insertMany(
@@ -128,7 +128,7 @@ async function seed() {
       isActive: true,
     }))
   );
-  console.log(`👮 Seeded ${createdOfficers.length} officers`);
+  console.log(`Seeded ${createdOfficers.length} officers`);
 
   // Seed Users
   const hashedUsers = await Promise.all(
@@ -140,13 +140,13 @@ async function seed() {
     }))
   );
   const createdUsers = await User.insertMany(hashedUsers);
-  console.log(`👥 Seeded ${createdUsers.length} users`);
+  console.log(`Seeded ${createdUsers.length} users`);
 
   // Seed SLA Configs
   const createdSLA = await SLAConfig.insertMany(
     slaConfigs.map((s) => ({ ...s, autoEscalate: true, escalationLevels: 3 }))
   );
-  console.log(`📋 Seeded ${createdSLA.length} SLA configurations`);
+  console.log(`Seeded ${createdSLA.length} SLA configurations`);
 
   // Seed Complaints (with new GeoJSON + timeline schema)
   const publicUsers = createdUsers.filter((u) => u.role === 'PUBLIC');
@@ -202,15 +202,15 @@ async function seed() {
   });
 
   await Complaint.insertMany(complaints);
-  console.log(`📝 Seeded ${complaints.length} complaints`);
+  console.log(`Seeded ${complaints.length} complaints`);
 
   // Seed audit logs
   await AuditLog.insertMany([
     { action: 'SYSTEM_SEED', performedBy: 'system', performedByName: 'System', role: 'SYSTEM', targetType: 'system', details: 'Database seeded with demo data' },
   ]);
-  console.log('📄 Seeded audit logs');
+  console.log('Seeded audit logs');
 
-  console.log('\n✅ Seed complete!');
+  console.log('\nSeed complete');
   console.log('\n--- Demo Accounts ---');
   console.log('PUBLIC:      citizen@demo.com / demo123');
   console.log('ADMIN:       admin@trafficpolice.gov.in / admin123');
@@ -221,6 +221,6 @@ async function seed() {
 }
 
 seed().catch((err) => {
-  console.error('❌ Seed failed:', err);
+  console.error('Seed failed:', err);
   process.exit(1);
 });

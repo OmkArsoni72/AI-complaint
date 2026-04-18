@@ -81,7 +81,7 @@ export const simulateCrisis = async (_req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: `🚨 Crisis simulated! ${complaints.length} complaints generated.`,
+      message: `Crisis simulated. ${complaints.length} complaints generated.`,
       data: complaints,
     });
   } catch (error) {

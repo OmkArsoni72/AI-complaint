@@ -295,7 +295,7 @@ export default function SuperAdminPage() {
     setIsSendingWarn(true);
     const res = await api.warnSuperadminAdmin(warnModal.admin.id, warnMessage || 'Please review your pending complaints immediately.');
     if (res.success) {
-      toast.success(`⚠️ Warning sent to ${warnModal.admin.name}`);
+      toast.success(`Warning sent to ${warnModal.admin.name}`);
       setWarnModal(null);
       setWarnMessage('');
     } else {
@@ -507,7 +507,7 @@ export default function SuperAdminPage() {
                               </span>
                               {(admin.stats?.escalated || 0) > 0 && (
                                 <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-rose-500/20 text-rose-400">
-                                  🚨 {admin.stats.escalated} Escalated
+                                  {admin.stats.escalated} Escalated
                                 </span>
                               )}
                             </div>

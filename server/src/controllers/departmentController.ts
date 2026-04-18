@@ -36,7 +36,10 @@ export const createDepartment = async (req: AuthRequest, res: Response) => {
   try {
     const { name, icon, location, type, jurisdictionLevel, categories, hierarchy } = req.body;
     const normalizedType = typeof type === 'string' ? type.trim() : '';
-    const exists = await Department.findOne({ name });
+    const exists = await Department.findOne({
+      name: { $regex: new RegExp(`^${name}$`, 'i') },
+      parentDepartmentId: null,
+    });
     if (exists) return res.status(400).json({ success: false, error: 'Department already exists' });
 
     const normalizedCategories = Array.isArray(categories)

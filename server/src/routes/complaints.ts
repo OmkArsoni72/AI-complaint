@@ -1,5 +1,4 @@
 import { Router, Request, Response } from 'express';
-import axios from 'axios';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -9,12 +8,13 @@ import Complaint from '../models/Complaint';
 import Notification from '../models/Notification';
 import Department from '../models/Department';
 import User from '../models/User';
-import { detectPriority, getDepartmentByCategory, calculateSLA, generateTags, generateComplaintId } from '../services/aiEngine';
+import { detectPriority, calculateSLA, generateTags, generateComplaintId } from '../services/aiEngine';
+import { fetchAiCategory } from '../services/aiService';
+import { mapComplaintCategory } from '../services/mappingService';
 import { emitEvent, emitToDepartment, emitToUser } from '../socket';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'grievance-system-secret-key-2024';
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000/predict';
 
 // ── Multer Storage Config ────────────────────────────────────────────────
 const isVercel = process.env.VERCEL === '1';
@@ -64,29 +64,48 @@ function getUserFromToken(req: Request): { userId: string; userName: string } | 
   }
 }
 
-async function analyzeComplaint(description: string, categoryOverride?: string) {
-  let category = typeof categoryOverride === 'string' ? categoryOverride.trim() : '';
+function isNoIssueDescription(description: string) {
+  const text = description.toLowerCase().trim();
+  if (!text) return true;
+  if (text.length < 15) return true;
+  const greetings = [
+    'hi', 'hello', 'hey', 'hy', 'hii', 'hiii',
+    'how are you', 'how r you', 'how are u', 'kaise ho',
+    'good morning', 'good evening', 'good night', 'test',
+  ];
+  return greetings.some((g) => text === g || text.startsWith(`${g} `));
+}
 
-  if (!category) {
-    const aiRes = await axios.post(AI_SERVICE_URL, { text: description });
-    category = typeof aiRes?.data?.category === 'string' ? aiRes.data.category.trim() : '';
+async function analyzeComplaint(description: string, categoryOverride?: string) {
+  if (isNoIssueDescription(description)) {
+    return {
+      noIssue: true,
+      rawCategory: null,
+      category: 'No Issue Detected',
+      priority: 'LOW',
+      department: 'General Department',
+      departmentId: null,
+      slaDeadline: calculateSLA('General', 'LOW'),
+      tags: ['no-issue'],
+    };
   }
 
-  if (!category) category = 'General';
+  const override = typeof categoryOverride === 'string' ? categoryOverride.trim() : '';
+  const aiResult = override ? { rawCategory: override } : await fetchAiCategory(description);
 
+  const activeDepartments = await Department.find({ isActive: true, parentDepartmentId: null }).select('name type categories');
+  const mapped = mapComplaintCategory(description, aiResult.rawCategory || null, activeDepartments as any);
   const priority = detectPriority(description);
-  const deptInfo = await getDepartmentByCategory(category);
-
-  const department = deptInfo._id ? deptInfo.name : '';
-  const departmentId = deptInfo._id || null;
-  const slaDeadline = calculateSLA(category, priority);
-  const tags = generateTags(description, category);
+  const slaDeadline = calculateSLA(mapped.category, priority);
+  const tags = generateTags(description, mapped.category);
 
   return {
-    category,
+    noIssue: false,
+    rawCategory: mapped.rawCategory,
+    category: mapped.category,
     priority,
-    department,
-    departmentId,
+    department: mapped.department,
+    departmentId: mapped.departmentId || null,
     slaDeadline,
     tags,
   };
@@ -192,6 +211,7 @@ router.post(
 
       // ── AI Engine (Real) ─────────────────────────────────────────────
       const analysis = await analyzeComplaint(description, category);
+      const rawCategory = analysis.rawCategory;
       category = analysis.category;
       const priority = analysis.priority;
       const department = analysis.department;
@@ -228,10 +248,11 @@ router.post(
       // ── Extract user identity from JWT (if logged in) ────────────────
       const userInfo = getUserFromToken(req);
 
-      const normalizedDepartment = department && department.trim() ? department : 'Unassigned';
+      const normalizedDepartment = department && department.trim() ? department : 'General Department';
       const complaint = await Complaint.create({
         complaintId: generateComplaintId(),
         description,
+        rawCategory: rawCategory || '',
         category,
         priority,
         department: normalizedDepartment,

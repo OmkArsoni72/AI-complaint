@@ -63,10 +63,10 @@ export const initSocket = (server: HttpServer) => {
       socket.join(`dept:${user.department}`);
     }
 
-    console.log('⚡ Socket connected:', socket.id, user?.userId ? `(user:${user.userId})` : '');
+    console.log('Socket connected:', socket.id, user?.userId ? `(user:${user.userId})` : '');
 
     socket.on('disconnect', () => {
-      console.log('❌ Socket disconnected:', socket.id);
+      console.log('Socket disconnected:', socket.id);
     });
   });
 

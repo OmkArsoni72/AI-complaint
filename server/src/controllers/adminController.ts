@@ -92,22 +92,15 @@ export const getSubDepartments = async (req: AuthRequest, res: Response) => {
   try {
     const scope = await buildDeptScope(req);
     if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
-
-    const parentIdSet = new Set<string>([scope.dept._id.toString()]);
-
-    if (req.user?.department) {
-      const escaped = req.user.department.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const nameMatches = await Department.find({ name: { $regex: new RegExp(`^${escaped}$`, 'i') } }).select('_id');
-      nameMatches.forEach((d) => parentIdSet.add(d._id.toString()));
+    const query: any = {
+      parentDepartmentId: scope.dept._id,
+      isActive: true,
+    };
+    if (req.user?.role === 'ADMIN' && req.user?.userId) {
+      query.createdBy = req.user.userId;
     }
 
-    if (req.user?.userId) {
-      const owned = await Department.find({ adminUserId: req.user.userId }).select('_id');
-      owned.forEach((d) => parentIdSet.add(d._id.toString()));
-    }
-
-    const parentIds = Array.from(parentIdSet);
-    const subs = await Department.find({ parentDepartmentId: { $in: parentIds }, isActive: true }).sort({ name: 1 });
+    const subs = await Department.find(query).sort({ name: 1 });
     const subIds = subs.map((s) => s._id);
 
     const stats = await Complaint.aggregate([
@@ -173,7 +166,11 @@ export const createSubDepartment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, error: 'name, email and password are required' });
     }
 
-    const existing = await Department.findOne({ name: { $regex: new RegExp(`^${deptName}$`, 'i') }, isActive: true });
+    const existing = await Department.findOne({
+      name: { $regex: new RegExp(`^${deptName}$`, 'i') },
+      parentDepartmentId: scope.dept._id,
+      isActive: true,
+    });
     if (existing) {
       console.log('[createSubDept] FAIL: dept name exists =>', deptName, '(matched:', existing.name, ')');
       return res.status(400).json({ success: false, error: `"${deptName}" naam ka department pehle se hai. Alag naam use karo.` });
@@ -195,6 +192,7 @@ export const createSubDepartment = async (req: AuthRequest, res: Response) => {
       state: state || '',
       governmentId: governmentId || '',
       contactEmail: deptEmail,
+      createdBy: req.user?.userId || null,
     });
 
     const adminUser = await User.create({
@@ -253,8 +251,12 @@ export const updateSubDepartment = async (req: AuthRequest, res: Response) => {
   try {
     const scope = await buildDeptScope(req);
     if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
+    const query: any = { _id: req.params.id, parentDepartmentId: scope.dept._id };
+    if (req.user?.role === 'ADMIN' && req.user?.userId) {
+      query.createdBy = req.user.userId;
+    }
 
-    const sub = await Department.findOne({ _id: req.params.id, parentDepartmentId: scope.dept._id });
+    const sub = await Department.findOne(query);
     if (!sub) return res.status(404).json({ success: false, error: 'Sub-department not found' });
 
     const { name, address, pincode, state, governmentId, contactEmail } = req.body;
@@ -288,8 +290,12 @@ export const deleteSubDepartment = async (req: AuthRequest, res: Response) => {
   try {
     const scope = await buildDeptScope(req);
     if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
+    const query: any = { _id: req.params.id, parentDepartmentId: scope.dept._id };
+    if (req.user?.role === 'ADMIN' && req.user?.userId) {
+      query.createdBy = req.user.userId;
+    }
 
-    const sub = await Department.findOne({ _id: req.params.id, parentDepartmentId: scope.dept._id });
+    const sub = await Department.findOne(query);
     if (!sub) return res.status(404).json({ success: false, error: 'Sub-department not found' });
 
     sub.isActive = false;
@@ -411,38 +417,25 @@ export const createOfficer = async (req: AuthRequest, res: Response) => {
 export const getAdminComplaints = async (req: AuthRequest, res: Response) => {
   try {
     const scope = await buildDeptScope(req);
-    console.log('[getAdminComplaints] user:', req.user?.email, 'role:', req.user?.role);
+    if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
     console.log('[getAdminComplaints] scope:', scope ? { deptName: scope.dept.name, deptIds: scope.deptIds.map((id: any) => id.toString()), categories: scope.dept.categories } : 'NULL');
     if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
 
     const isSubDepartment = Boolean(req.user?.isSubDepartment);
     const subDeptId = req.user?.departmentId;
+    const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Build base query
-    const query: any = isSubDepartment
-      ? {
-          $or: [
-            { assignedTo: req.user?.userId },
-            ...(subDeptId ? [{ departmentId: subDeptId }] : []),
-          ],
-        }
-      : (() => {
-          const orConditions: any[] = [
-            { departmentId: { $in: scope.deptIds } },
-            { department: scope.dept.name },
-          ];
-          // Also match by department categories
-          const deptCategories = scope.dept.categories;
-          if (Array.isArray(deptCategories) && deptCategories.length > 0) {
-            orConditions.push({ category: { $in: deptCategories } });
-          }
-          // If department has NO categories and only 1 deptId (no sub-departments yet),
-          // show ALL complaints so admin is never blocked
-          const hasNoCategories = !Array.isArray(deptCategories) || deptCategories.length === 0;
-          if (hasNoCategories) {
-            return {}; // No filter = all complaints visible
-          }
-          return { $or: orConditions };
-        })();
+    let query: any;
+    if (isSubDepartment) {
+      query = {
+        $or: [
+          { assignedTo: req.user?.userId },
+          ...(subDeptId ? [{ departmentId: subDeptId }] : []),
+        ],
+      };
+    } else {
+      query = { departmentId: { $in: scope.deptIds } };
+    }
 
     if (typeof req.query.status === 'string' && req.query.status.trim()) {
       query.status = req.query.status.trim();
@@ -643,25 +636,25 @@ export const assignSubDepartment = async (req: AuthRequest, res: Response) => {
     const rawSub = req.body?.subDepartmentId || req.body?.subDepartment || req.body?.subDeptId || '';
     const subDepartmentId = typeof rawSub === 'string' ? rawSub.trim() : '';
 
-    const subDept = subDepartmentId
-      ? await Department.findOne({
-          _id: subDepartmentId,
-          parentDepartmentId: scope.dept._id,
-          isActive: true,
-        })
-      : typeof rawSub === 'object' && rawSub?._id
-        ? await Department.findOne({
-            _id: rawSub._id,
-            parentDepartmentId: scope.dept._id,
-            isActive: true,
-          })
-        : typeof rawSub === 'string'
-          ? await Department.findOne({
-              name: { $regex: new RegExp(`^${rawSub}$`, 'i') },
-              parentDepartmentId: scope.dept._id,
-              isActive: true,
-            })
-          : null;
+    const subQuery: any = {
+      parentDepartmentId: scope.dept._id,
+      isActive: true,
+    };
+    if (req.user?.role === 'ADMIN' && req.user?.userId) {
+      subQuery.createdBy = req.user.userId;
+    }
+
+    let subDept = null as any;
+    if (subDepartmentId) {
+      subDept = await Department.findOne({ ...subQuery, _id: subDepartmentId });
+    } else if (typeof rawSub === 'object' && rawSub?._id) {
+      subDept = await Department.findOne({ ...subQuery, _id: rawSub._id });
+    } else if (typeof rawSub === 'string' && rawSub.trim()) {
+      subDept = await Department.findOne({
+        ...subQuery,
+        name: { $regex: new RegExp(`^${rawSub.trim()}$`, 'i') },
+      });
+    }
 
     if (!subDept) return res.status(404).json({ success: false, error: 'Sub-department not found' });
 
@@ -880,11 +873,16 @@ export const getSubDepartmentComplaints = async (req: AuthRequest, res: Response
     if (!scope) return res.status(403).json({ success: false, error: 'Department scope not found' });
 
     const subDeptId = req.params.id;
-    const subDept = await Department.findOne({
+    const subQuery: any = {
       _id: subDeptId,
       parentDepartmentId: scope.dept._id,
       isActive: true,
-    });
+    };
+    if (req.user?.role === 'ADMIN' && req.user?.userId) {
+      subQuery.createdBy = req.user.userId;
+    }
+
+    const subDept = await Department.findOne(subQuery);
     if (!subDept) return res.status(404).json({ success: false, error: 'Sub-department not found' });
 
     const complaints = await Complaint.find({

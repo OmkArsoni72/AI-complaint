@@ -43,7 +43,7 @@ export default function AdminTopbar({ onMenuToggle }: TopbarProps) {
 
     const unSub = onEvent('notification_created', (note) => {
       setNotificationList((prev) => [note, ...prev]);
-      toast('New admin notice received', { icon: '📣' });
+      toast('New admin notice received');
     }, localStorage.getItem('grievance_token'));
 
     return () => {
@@ -67,7 +67,7 @@ export default function AdminTopbar({ onMenuToggle }: TopbarProps) {
     try {
       const res: any = await api.simulateCrisis();
       if (res.success) {
-        toast.success(res.message || 'Crisis simulated!', { icon: '🚨', duration: 5000 });
+        toast.success(res.message || 'Crisis simulated!', { duration: 5000 });
         window.dispatchEvent(new CustomEvent('crisis-simulated'));
       } else {
         toast.error('Failed to simulate crisis');
@@ -101,7 +101,7 @@ export default function AdminTopbar({ onMenuToggle }: TopbarProps) {
           <kbd
             className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] text-slate-400 rounded border border-slate-200/70 bg-white/70 dark:text-white/20 dark:border-white/[0.08] dark:bg-slate-900/80"
           >
-            ⌘K
+            Ctrl+K
           </kbd>
         </div>
       </div>
