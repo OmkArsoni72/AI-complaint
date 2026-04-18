@@ -4,9 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  FileText, Clock, ChevronRight, MapPin, AlertCircle,
-  CheckCircle2, TrendingUp, RefreshCcw, PlusCircle,
-  Tag, LogIn, Inbox
+  Clock, ChevronRight, MapPin, AlertCircle,
+  RefreshCcw, PlusCircle, Inbox
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
@@ -23,16 +22,17 @@ interface Complaint {
   createdAt: string;
 }
 
-const STATUS_CONFIG: Record<string, { style: string; icon: React.JSX.Element }> = {
-  pending:   { style: 'bg-amber-500/10 text-amber-400 border-amber-500/20',   icon: <Clock className="w-3 h-3" /> },
-  resolved:  { style: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: <CheckCircle2 className="w-3 h-3" /> },
-  escalated: { style: 'bg-rose-500/10 text-rose-400 border-rose-500/20',      icon: <AlertCircle className="w-3 h-3" /> },
-};
-
-const PRIORITY_DOT: Record<string, string> = {
-  HIGH: 'bg-rose-500',
-  MEDIUM: 'bg-amber-500',
-  LOW: 'bg-emerald-500',
+const getStatusStyle = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'pending':
+      return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+    case 'resolved':
+      return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+    case 'escalated':
+      return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+    default:
+      return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+  }
 };
 
 export default function MyComplaintsPage() {
@@ -175,84 +175,57 @@ export default function MyComplaintsPage() {
               </button>
             </motion.div>
           ) : (
-            <AnimatePresence>
-              {complaints.map((c, i) => {
-                const statusKey = c.status?.toLowerCase() || 'pending';
-                const config = STATUS_CONFIG[statusKey] || STATUS_CONFIG.pending;
-                const areaStr = typeof c.location === 'object' ? c.location?.area : c.location;
-                
-                // Enhance status styles for light mode visibility
-                const statusBetterStyle = statusKey === 'pending' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400' :
-                                         statusKey === 'resolved' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400' :
-                                         'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400';
+            <div className="space-y-4">
+              <AnimatePresence>
+                {complaints.map((c, i) => {
+                  const areaStr = typeof c.location === 'object' ? c.location?.area : c.location;
 
-                return (
-                  <motion.div
-                    key={c._id}
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.04 }}
-                    onClick={() => router.push(`/user/complaints/${c._id}`)}
-                    className="group relative p-6 md:p-8 rounded-[2.5rem] glass-card hover:border-primary-500/30 hover:bg-white dark:hover:bg-white/[0.06] transition-all cursor-pointer overflow-hidden shadow-lg border-2"
-                  >
-                    {/* Left accent */}
-                    <div className="absolute left-0 top-1/4 bottom-1/4 w-1.5 bg-primary-500 opacity-0 group-hover:opacity-100 rounded-r-full transition-all" />
-
-                    <div className="flex items-start justify-between gap-6 relative z-10">
-                      <div className="flex-1 min-w-0">
-                        {/* Badges row */}
-                        <div className="flex flex-wrap items-center gap-3 mb-4">
-                          <span 
-                            suppressHydrationWarning
-                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest shadow-sm ${statusBetterStyle}`}
-                          >
-                            {config.icon}
-                            {c.status}
-                          </span>
-                          <span className="px-3 py-1.5 rounded-xl dark:bg-white/5 bg-slate-100 border dark:border-white/10 border-slate-200 text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest shadow-sm">
-                            {c.category}
-                          </span>
-                          {c.priority && (
-                            <span className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest ml-1">
-                              <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${PRIORITY_DOT[c.priority] || 'bg-slate-600'}`} />
-                              {c.priority}
+                  return (
+                    <motion.div
+                      key={c._id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      onClick={() => router.push(`/user/complaints/${c._id}`)}
+                      className="group relative p-6 md:p-8 rounded-[2rem] glass-card hover:border-primary-500/30 hover:bg-white dark:hover:bg-white/[0.05] transition-all cursor-pointer overflow-hidden shadow-lg border-2"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-4">
+                            <span className={`px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest ${getStatusStyle(c.status)}`}>
+                              {c.status}
                             </span>
-                          )}
+                            <span className="px-3 py-1.5 rounded-xl bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-500/20 text-[10px] font-black uppercase tracking-widest shadow-sm">
+                              {c.category}
+                            </span>
+                          </div>
+                          <h3 className="text-xl font-bold dark:text-white text-slate-800 truncate group-hover:text-primary-600 dark:group-hover:text-white transition-colors">
+                            {c.description}
+                          </h3>
+                          <div className="flex items-center gap-6 mt-4 text-xs dark:text-slate-500 text-slate-400 font-medium">
+                            {areaStr && (
+                              <span className="flex items-center gap-2">
+                                <MapPin className="w-3.5 h-3.5 text-rose-500/70" />
+                                {areaStr}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-2">
+                              <Clock className="w-3.5 h-3.5 text-blue-500/70" />
+                              {new Date(c.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
                         </div>
-
-                        {/* Description */}
-                        <p className="dark:text-white text-slate-900 text-lg font-bold line-clamp-2 group-hover:text-primary-600 dark:group-hover:text-white transition-colors mb-3 leading-tight">
-                          {c.description}
-                        </p>
-
-                        {/* Meta */}
-                        <div className="flex flex-wrap items-center gap-5 text-[11px] dark:text-slate-500 text-slate-400 font-medium">
-                          {areaStr && (
-                            <span className="flex items-center gap-2">
-                              <MapPin className="w-3.5 h-3.5 text-rose-500/70" /> {areaStr}
-                            </span>
-                          )}
-                          <span className="flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5 text-primary-500/70" />
-                            {new Date(c.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          </span>
-                          {c.tags?.length > 0 && (
-                            <span className="flex items-center gap-2">
-                              <Tag className="w-3.5 h-3.5 text-emerald-500/70" />
-                              {c.tags.slice(0, 2).map(tag => `#${tag}`).join(' ')}
-                            </span>
-                          )}
+                        <div className="flex-shrink-0">
+                          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center group-hover:bg-primary-500 group-hover:text-white transition-all shadow-md">
+                            <ChevronRight className="w-5 h-5" />
+                          </div>
                         </div>
                       </div>
-
-                      <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center group-hover:bg-primary-500 group-hover:text-white transition-all shadow-md mt-1 flex-shrink-0">
-                        <ChevronRight className="w-6 h-6" />
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
           )}
         </div>
       </div>
