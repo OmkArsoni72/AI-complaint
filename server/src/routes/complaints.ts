@@ -14,10 +14,52 @@ import { emitEvent, emitToDepartment, emitToUser } from '../socket';
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'grievance-system-secret-key-2024';
 
+const STOPWORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'but', 'by', 'for', 'from', 'has', 'have',
+  'he', 'her', 'hers', 'his', 'i', 'if', 'in', 'into', 'is', 'it', 'its', 'me', 'my',
+  'of', 'on', 'or', 'our', 'ours', 'she', 'so', 'that', 'the', 'their', 'them', 'they',
+  'this', 'to', 'was', 'we', 'were', 'what', 'when', 'where', 'who', 'will', 'with',
+  'you', 'your', 'yours', 'near', 'around', 'here', 'there', 'please', 'urgent'
+]);
+
+function extractKeywords(text: string): string[] {
+  if (!text) return [];
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w));
+  return Array.from(new Set(words));
+}
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const r = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return r * c;
+}
+
+function hasKeywordOverlap(a: string[], b: string[]): boolean {
+  if (a.length === 0 || b.length === 0) return false;
+  const setB = new Set(b);
+  let overlap = 0;
+  for (const w of a) {
+    if (setB.has(w)) overlap += 1;
+  }
+  const minSize = Math.min(a.length, b.length);
+  if (minSize <= 2) return overlap >= 1;
+  return overlap >= 2;
+}
+
 // ── Multer Storage Config ────────────────────────────────────────────────
 const isVercel = process.env.VERCEL === '1';
-const uploadsDir = isVercel 
-  ? path.join('/tmp', 'uploads') 
+const uploadsDir = isVercel
+  ? path.join('/tmp', 'uploads')
   : path.join(process.cwd(), 'uploads');
 
 try {
@@ -85,6 +127,76 @@ router.get('/nearby', async (req: Request, res: Response) => {
     }).limit(20);
 
     res.json({ success: true, data: complaints });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ── POST /api/complaints/check-duplicate — Find similar complaints ─────
+router.post('/check-duplicate', async (req: Request, res: Response) => {
+  try {
+    const { title, description, lat, lng } = req.body;
+    const latNum = typeof lat === 'number' ? lat : parseFloat(lat as string);
+    const lngNum = typeof lng === 'number' ? lng : parseFloat(lng as string);
+
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+      return res.status(400).json({ success: false, error: 'Invalid coordinates' });
+    }
+
+    const combinedText = `${title || ''} ${description || ''}`.trim();
+    if (!combinedText) {
+      return res.status(400).json({ success: false, error: 'title or description is required' });
+    }
+
+    const keywords = extractKeywords(combinedText);
+    if (keywords.length === 0) {
+      return res.json({
+        success: true,
+        data: { isDuplicate: false, similarComplaints: [] },
+      });
+    }
+
+    const candidates = await Complaint.find({
+      status: { $nin: ['RESOLVED', 'CLOSED', 'REJECTED'] },
+      location: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [lngNum, latNum],
+          },
+          $maxDistance: 500,
+        },
+      },
+    }).limit(20);
+
+    const similarComplaints = candidates
+      .map((c) => {
+        const descriptionText = typeof c.description === 'string' ? c.description : '';
+        const candidateKeywords = extractKeywords(descriptionText);
+        const isSimilar = hasKeywordOverlap(keywords, candidateKeywords);
+        const [cLng, cLat] = c.location?.coordinates || [lngNum, latNum];
+        const distance = haversineMeters(latNum, lngNum, cLat, cLng);
+        return {
+          isSimilar,
+          id: c._id.toString(),
+          title: descriptionText.slice(0, 80),
+          location: c.location,
+          distance: Math.round(distance),
+          status: c.status,
+        };
+      })
+      .filter((c) => c.isSimilar)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 5)
+      .map(({ isSimilar: _ignore, ...rest }) => rest);
+
+    res.json({
+      success: true,
+      data: {
+        isDuplicate: similarComplaints.length > 0,
+        similarComplaints,
+      },
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -292,6 +404,43 @@ router.post(
     }
   }
 );
+
+// ── POST /api/complaints/:id/join — Join existing complaint ───────────
+router.post('/:id/join', async (req: Request, res: Response) => {
+  try {
+    const userInfo = getUserFromToken(req);
+    if (!userInfo || !userInfo.userId) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+    }
+
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) return res.status(404).json({ success: false, error: 'Complaint not found' });
+
+    if (complaint.userId === userInfo.userId || complaint.joinedUsers?.includes(userInfo.userId)) {
+      return res.status(409).json({ success: false, error: 'Already joined' });
+    }
+
+    const updated = await Complaint.findByIdAndUpdate(
+      req.params.id,
+      {
+        $addToSet: { joinedUsers: userInfo.userId },
+        $inc: { joinCount: 1 },
+      },
+      { new: true }
+    );
+
+    if (!updated) return res.status(404).json({ success: false, error: 'Complaint not found' });
+
+    emitToDepartment(updated.department, 'complaint_updated', updated);
+    if (updated.userId) {
+      emitToUser(updated.userId, 'complaint_updated', updated);
+    }
+
+    res.json({ success: true, data: { message: 'Joined successfully', complaint: updated } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // ── GET /api/complaints/my — Complaints for the logged-in user ──────────
 router.get('/my', async (req: Request, res: Response) => {

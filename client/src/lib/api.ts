@@ -143,6 +143,20 @@ export const api = {
     return await fetchApi<any>(`/complaints/${id}`);
   },
 
+  checkDuplicateComplaint: async (payload: { title?: string; description: string; lat: number; lng: number }) => {
+    return await fetchApi<{ isDuplicate: boolean; similarComplaints: any[] }>(
+      '/complaints/check-duplicate',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  },
+
+  joinComplaint: async (id: string) => {
+    return await fetchApi<any>(`/complaints/${id}/join`, { method: 'POST' });
+  },
+
   createComplaint: async (data: any) => {
     return await fetchApi<any>('/complaints', {
       method: 'POST',

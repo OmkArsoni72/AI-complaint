@@ -32,6 +32,7 @@ interface Complaint {
   timeline: TimelineStep[];
   assignedOfficer: string;
   createdAt: string;
+  joinCount?: number;
 }
 
 const PRIORITY_CONFIG: Record<string, { color: string; bg: string; border: string; icon: string; reason: string }> = {
@@ -282,6 +283,10 @@ export default function ComplaintDetailPage({ params: paramsPromise }: { params:
               <h1 className="text-3xl md:text-4xl font-black dark:text-white text-slate-900 leading-[1.15] mb-10 tracking-tight">
                 {complaint.description}
               </h1>
+
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-8">
+                {Math.max(1, (complaint.joinCount || 0) + 1)} users reported this issue
+              </p>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                 <div className="space-y-2">
