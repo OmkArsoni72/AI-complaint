@@ -212,6 +212,7 @@ export default function NewComplaintPage() {
     setIsPlayingVoice(false);
   };
 
+
   // Submit
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -568,6 +569,7 @@ export default function NewComplaintPage() {
               {t('voiceNote')}
               <span className="text-[9px] text-slate-400 normal-case tracking-normal ml-2 font-medium">(Optional) — For voice description</span>
             </label>
+
 
             {voiceBlob ? (
               <div className="flex items-center gap-6 p-6 bg-emerald-500/5 dark:bg-emerald-500/10 border-2 border-emerald-500/20 rounded-[2rem] shadow-inner">
