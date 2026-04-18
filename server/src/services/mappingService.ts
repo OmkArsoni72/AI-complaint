@@ -15,7 +15,7 @@ type Dept = {
 const KEYWORDS = {
   utilitiesWater: ['water', 'pani', 'pipeline', 'leakage', 'jal', 'nall'],
   utilitiesPower: ['electricity', 'bijli', 'power', 'current'],
-  law: ['crime', 'theft', 'police', 'fir', 'rape', 'assault', 'harassment', 'murder', 'homicide', 'kill', 'killed', 'stabbing', 'shooting', 'kidnap', 'abduction'],
+  law: ['crime', 'theft', 'police', 'fir', 'rape', 'raped', 'rapped', 'assault', 'harassment', 'murder', 'homicide', 'kill', 'killed', 'stabbing', 'shooting', 'kidnap', 'abduction'],
   infrastructure: ['road', 'drainage', 'bridge', 'pothole', 'pwd'],
   government: ['scheme', 'pension', 'ration', 'govt', 'government'],
   education: ['school', 'education', 'teacher', 'college', 'student', 'students', 'class', 'padhai', 'skool', 'siksha'],
